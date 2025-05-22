@@ -17,11 +17,11 @@ This application allows you to classify porphyry rock samples as Cu-rich or Au-r
 based on their elemental composition using pre-trained machine learning models.
 
 **Navigate using the sidebar to:**
-- **🏠 Home:** You are here.
-- **🚀 Run Prediction:** Upload your data and get classifications.
-- **📈 Performance Visualizer:** Evaluate model performance if you have true labels.
-- **💡 Model Insights:** View general interpretability plots for the models.
-- **❓ Help/About:** Get usage instructions and app details.
+- **Home:** You are here.
+- **Run Prediction:** Upload your data and get classifications.
+- **Performance Visualizer:** Evaluate model performance if you have true labels.
+- **Model Insights:** View general interpretability plots for the models.
+- **Help/About:** Get usage instructions and app details.
 """)
 
 # To make Streamlit recognize the 'pages' directory for multi-page apps,

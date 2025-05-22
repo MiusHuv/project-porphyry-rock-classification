@@ -1,0 +1,10 @@
+# project-2025-porphyry-rock-classification/requirements.txt
+streamlit
+pandas
+scikit-learn 
+joblib # Add this line
+xgboost
+matplotlib
+seaborn
+openpyxl 
+Pillow 

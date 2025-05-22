@@ -1,29 +1,44 @@
-# app.py
+# ./app.py
 import streamlit as st
 
-# Optional: Set global page configuration (do this only once, preferably here or in .streamlit/config.toml)
-# st.set_page_config(
-#     page_title="GeoClassifier",
-#     page_icon="⛏️",
-#     layout="wide",
-#     initial_sidebar_state="expanded"
-# )
+from page import Home, run_prediction, performance_visualizer, model_insights, help_about
 
-st.sidebar.success("Select a page above.")
+# -----------------------------------------------------------------------------
+# 2. SETUP PAGE DICTIONARY (mapping to imported module functions)
+# -----------------------------------------------------------------------------
+PAGES = {
+    "🏠 Home": Home.show_page,
+    "🚀 Run Prediction": run_prediction.show_page, 
+    "📈 Performance Visualizer": performance_visualizer.show_page,
+    "💡 Model Insights": model_insights.show_page,
+    "❓ Help / About": help_about.show_page
+}
 
-st.title("Welcome to the Geochemical Classifier! ")
-st.markdown("""
-This application allows you to classify porphyry rock samples as Cu-rich or Au-rich
-based on their elemental composition using pre-trained machine learning models.
+# Initialize session state
+if "selected_page" not in st.session_state:
+    st.session_state.selected_page = "🏠 Home"
 
-**Navigate using the sidebar to:**
-- **Home:** You are here.
-- **Run Prediction:** Upload your data and get classifications.
-- **Performance Visualizer:** Evaluate model performance if you have true labels.
-- **Model Insights:** View general interpretability plots for the models.
-- **Help/About:** Get usage instructions and app details.
-""")
+# -----------------------------------------------------------------------------
+# 3. CREATE THE SIDEBAR FOR NAVIGATION
+# -----------------------------------------------------------------------------
+st.sidebar.title("Main Menu")
 
-# To make Streamlit recognize the 'pages' directory for multi-page apps,
-# this file (app.py) and the 'pages' directory must be in the root of your Streamlit app's execution path.
-# No other specific code is needed here for page navigation if using the 'pages/' folder.
+def update_page():
+    st.session_state.selected_page = st.session_state.page_selector
+
+selection = st.sidebar.selectbox(
+    "Select Page",
+    options=list(PAGES.keys()),
+    key="page_selector",
+    on_change=update_page,
+    index=list(PAGES.keys()).index(st.session_state.selected_page)
+)
+
+# -----------------------------------------------------------------------------
+# 4. DISPLAY THE SELECTED PAGE
+# -----------------------------------------------------------------------------
+page_function = PAGES[st.session_state.selected_page]
+page_function()
+
+# Initialize other session state variables
+# (Same as in Option 1's app.py)

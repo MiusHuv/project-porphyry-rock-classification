@@ -1,4 +1,4 @@
-# ./pages/Home.py
+# ./pages/1_Home.py
 import streamlit as st
 
 def show_home_page():

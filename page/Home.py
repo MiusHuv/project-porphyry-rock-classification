@@ -36,17 +36,17 @@ def show_page():
         elemental composition.
 
         **How to Use:**
-        1. Navigate to the **🚀 Run Prediction** page using the sidebar.
+        1. Navigate to the **Run Prediction** page using the sidebar.
         2. Upload your sample data (CSV or XLSX format).
         3. Select a pre-trained classification model.
         4. View the predictions and probabilities.
-        5. Optionally, if your data includes true labels, use the **📈 Performance Visualizer**.
+        5. Optionally, if your data includes true labels, use the **Performance Visualizer**.
 
         The models were trained on the "2025-Project-Data.xlsx" dataset, comprising
         36 major- and trace-element features.
 
         For more detailed instructions and information about the models and features,
-        please visit the **❓ Help / About** page.
+        please visit the **Help / About** page.
     """)
 
 

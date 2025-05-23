@@ -1,11 +1,19 @@
 import streamlit as st
+import pandas as pd
+import numpy as np
+import joblib
+import xgboost as xgb
+import matplotlib
+import matplotlib.pyplot as plt
+import seaborn as sns
+import sklearn
 
 def show_page():
-    st.title("❓ Help / About This Tool")
+    st.title("Help / About This Tool")
 
     st.subheader("Usage Instructions")
     st.markdown("""
-    1.  **Navigate to '🚀 Run Prediction'**: Use the sidebar to go to the prediction page.
+    1.  **Navigate to 'Run Prediction'**: Use the sidebar to go to the prediction page.
     2.  **Upload Data**:
         * Click 'Browse files' to upload your sample data.
         * The file must be in `.csv` or `.xlsx` format.
@@ -16,8 +24,8 @@ def show_page():
         * If your data includes a column with true labels (e.g., 'Actual_Class'), you can check the box "My data includes a 'True Label' column..." and select that column. This enables performance visualization.
         * Click the 'Predict using [Selected Model]' button.
     5.  **View Results**: Predictions and probabilities will be displayed in a table. You can download these results as a CSV file.
-    6.  **Visualize Performance (Optional)**: If you provided a true label column, navigate to the '📈 Performance Visualizer' page to see the confusion matrix and ROC curve for the predictions made.
-    7.  **Explore Model Insights**: Navigate to '💡 Model Insights' to see feature importances (for some models) and example SHAP plots (static images from training).
+    6.  **Visualize Performance (Optional)**: If you provided a true label column, navigate to the 'Performance Visualizer' page to see the confusion matrix and ROC curve for the predictions made.
+    7.  **Explore Model Insights**: Navigate to 'Model Insights' to see feature importances (for some models) and example SHAP plots (static images from training).
     """)
 
     st.subheader("Feature Descriptions (Input Data Requirements)")
@@ -39,23 +47,22 @@ def show_page():
     """)
 
     st.subheader("Library Versions & Tech Stack")
-    st.markdown("""
-    This application was built using Python and relies on several key libraries:
-    * Streamlit: For the web GUI (version `...`)
-    * Pandas: For data manipulation (version `...`)
-    * Scikit-learn: For ML models (RF, SVM) and metrics (version `...`)
-    * XGBoost: For the XGBoost model (version `...`)
-    * TensorFlow/Keras: For the DNN model (version `...`)
-    * Matplotlib & Seaborn: For plotting (versions `...`)
-    * Joblib: For model persistence (version `...`)
-    * *(Add other important libraries and their versions used in your project environment)*
+    st.markdown("""This application was built using Python and relies on several key libraries:
+                """)
+    st.code(f"""
+    * Streamlit: For the web GUI (version {st.__version__})
+    * Pandas: For data manipulation (version {pd.__version__})
+    * Numpy: For numerical operations (version {np.__version__})
+    * Scikit-learn: For ML models (RF, SVM) and metrics (version {sklearn.__version__})
+    * XGBoost: For the XGBoost model (version {xgb.__version__ if 'xgb' in globals() else 'N/A'}
+    * Matplotlib & Seaborn: For plotting (versions {matplotlib.__version__}, {sns.__version__})
+    * Joblib: For model persistence (version {joblib.__version__})
     """)
     st.caption("To get exact versions, you can typically use `pip freeze > requirements.txt` in your project's virtual environment and list key ones here.")
 
-
     st.subheader("Project & Acknowledgements")
     st.markdown("""
-    * This tool was developed as part of the [Your Course Name/Number] project.
+    * This tool was developed as part of the COMMON TOOLS FOR DATA SCIENCE final project.
     * **Team:** [Your Team Name or Group Number: e.g., 2025GXX-ProjectName]
         * [Team Member 1]
         * [Team Member 2]

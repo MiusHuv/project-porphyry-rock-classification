@@ -7,16 +7,16 @@ from page import Home, run_prediction, performance_visualizer, model_insights, h
 # 2. SETUP PAGE DICTIONARY (mapping to imported module functions)
 # -----------------------------------------------------------------------------
 PAGES = {
-    "🏠 Home": Home.show_page,
-    "🚀 Run Prediction": run_prediction.show_page, 
-    "📈 Performance Visualizer": performance_visualizer.show_page,
-    "💡 Model Insights": model_insights.show_page,
-    "❓ Help / About": help_about.show_page
+    "Home": Home.show_page,
+    "Run Prediction": run_prediction.show_page, 
+    "Performance Visualizer": performance_visualizer.show_page,
+    "Model Insights": model_insights.show_page,
+    "Help / About": help_about.show_page
 }
 
 # Initialize session state
 if "selected_page" not in st.session_state:
-    st.session_state.selected_page = "🏠 Home"
+    st.session_state.selected_page = "Home"
 
 # -----------------------------------------------------------------------------
 # 3. CREATE THE SIDEBAR FOR NAVIGATION

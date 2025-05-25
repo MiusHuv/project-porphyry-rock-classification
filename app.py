@@ -35,13 +35,23 @@ if "selected_page_key" not in st.session_state:
 # -----------------------------------------------------------------------------
 
 # Language Selector
-st.sidebar.radio(
-    label=T("language_label"), # "Language"
-    options=["en", "zh"],
-    format_func=lambda lang_code: "English" if lang_code == "en" else "中文",
-    key="language_selector",
-    on_change=update_language,
-    horizontal=True,
+language_options_map = {"en": "English", "zh": "中文"}
+language_option_codes = list(language_options_map.keys()) # ["en", "zh"]
+
+# Determine the current index for the selectbox based on st.session_state.lang
+current_lang_code = st.session_state.get("lang", "en")
+try:
+    current_lang_index = language_option_codes.index(current_lang_code)
+except ValueError:
+    current_lang_index = 0 # Default to the first option (English)
+
+st.sidebar.selectbox(
+    label=T("language_label"), # "Language" / "语言"
+    options=language_option_codes,
+    format_func=lambda lang_code: language_options_map[lang_code], # Displays "English" or "中文"
+    key="lang",  # Directly use st.session_state.lang as the key
+    index=current_lang_index, # Set the initially selected item
+    # No on_change callback needed if just updating st.session_state.lang
 )
 st.sidebar.markdown("---")
 

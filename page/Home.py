@@ -2,6 +2,7 @@
 import streamlit as st
 from PIL import Image 
 from pathlib import Path
+from util.language import T, TEXTS
 
 def show_page():
 
@@ -9,14 +10,14 @@ def show_page():
 
     img_path = Path(__file__).parent.parent / "assets" / "Sample.png"
 
-    try:
-        img = Image.open(img_path)
-        with left_col:
-            st.image(img, caption="Porphyry Deposit Illustration", use_container_width=True)
-    except FileNotFoundError:
-        with left_col:
-            st.warning("Homepage image 'Sample.png' not found.")
-    
+    with left_col:
+        img_path = Path(__file__).parent.parent / "assets" / "Sample.png"
+        try:
+            img = Image.open(img_path)
+            st.image(img, caption=T("home_image_caption"), use_container_width=True)
+        except FileNotFoundError:
+            st.warning("Homepage image 'Sample.png' not found in assets folder.") # This could also be translated
+
     with left_col: # This ensures the markdown is always displayed, even if image fails
         st.markdown("""
             <style>
@@ -27,33 +28,47 @@ def show_page():
             """, unsafe_allow_html=True)
 
     with right_col:
-        st.title("Welcome to the Geochemical Rock Classifier")
-        st.write("This tool classifies porphyry rock samples based on their elemental composition.")
+        st.title(T("home_title"))
+        st.subheader(T("home_subtitle"))
+        st.markdown(T("home_intro"))
+        st.markdown(f"**{T('home_core_features_header')}**")
+        st.markdown(f"*   {T('home_core_feature_1')}")
+        st.markdown(f"*   {T('home_core_feature_2')}")
+        st.markdown(f"*   {T('home_core_feature_3')}")
 
 
-    st.markdown("""
-        This tool classifies porphyry rock samples as **Cu-rich** or **Au-rich** based on their
-        elemental composition.
+    # --- 2. Quick Navigation / Call to Action ---
+    st.header(T("home_quick_start_header"))
+    col1, col2, col3 = st.columns(3)
 
-        **How to Use:**
-        1. Navigate to the **Run Prediction** page using the sidebar.
-        2. Upload your sample data (CSV or XLSX format).
-        3. Select a pre-trained classification model.
-        4. View the predictions and probabilities.
-        5. Optionally, if your data includes true labels, use the **Performance Visualizer**.
+    # Store page keys directly for navigation, display names are handled by app.py
+    # The button labels themselves should be translated.
+    with col1:
+        if st.button(T("home_button_run_prediction"), use_container_width=True, help=T("home_help_run_prediction")):
+            st.session_state.selected_page_key = "Run Prediction"
+            st.rerun()
 
-        The models were trained on the "2025-Project-Data.xlsx" dataset, comprising
-        36 major- and trace-element features.
+    with col2:
+        if st.button(T("home_button_view_performance"), use_container_width=True, help=T("home_help_view_performance")):
+            st.session_state.selected_page_key = "Performance Visualizer"
+            st.rerun()
 
-        For more detailed instructions and information about the models and features,
-        please visit the **Help / About** page.
-    """)
+    with col3:
+        if st.button(T("home_button_model_insights"), use_container_width=True, help=T("home_help_model_insights")):
+            st.session_state.selected_page_key = "Model Insights"
+            st.rerun()
+            
+    st.markdown("---")
 
+    # --- 3. Application Overview ---
+    st.header(T("home_app_overview_header"))
+    st.markdown(T("home_app_overview_p1"))
+    st.markdown(f"1.  {T('home_app_overview_li1')}")
+    st.markdown(f"2.  {T('home_app_overview_li2')}")
+    st.markdown(f"3.  {T('home_app_overview_li3')}")
+    st.markdown(T("home_app_overview_p2"))
+    
+    st.markdown("---")
 
-    # You could add an image from your assets folder:
-    # from PIL import Image
-    # try:
-    #     image = Image.open("assets/your_geology_image.png")
-    #     st.image(image, caption="Porphyry Deposit Illustration")
-    # except FileNotFoundError:
-    #     st.warning("Homepage image not found.")
+    # --- 4. Further Assistance ---
+    st.info(T("home_further_assistance_info"))

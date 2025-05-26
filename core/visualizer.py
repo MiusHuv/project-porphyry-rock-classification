@@ -1,149 +1,320 @@
-# geochem_classifier_gui/core/visualizer.py
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import confusion_matrix, roc_curve, auc, precision_recall_curve, average_precision_score
-import streamlit as st
-import pandas as pd # For feature importance display
-from util.language import T
-import matplotlib
+from sklearn.metrics import (
+    confusion_matrix, 
+    roc_curve, 
+    auc, 
+    precision_recall_curve
+)
+from sklearn.preprocessing import label_binarize
+import numpy as np
+import pandas as pd
+import os
+try:
+    import shap
+    SHAP_AVAILABLE = True
+    # For PyTorch, shap might need specific handling or newer versions
+    # For basic tree models, it's usually straightforward.
+    # shap.initjs() # Not needed for saving plots, only for notebook display
+except ImportError:
+    print("SHAP library not found. Please install with: pip install shap. SHAP plots will be skipped.")
+    SHAP_AVAILABLE = False
 
-# Define your class names as used in training (after label encoding if any)
-# e.g., if 'Au-rich' was 0 and 'Cu-rich' was 1
-CLASS_NAMES = ['Au-rich', 'Cu-rich'] # Or however you map them
+def plot_loss_vs_trees(train_scores, val_scores, n_estimators_range, model_name):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(n_estimators_range, train_scores, label="Training Score", marker='o', linestyle='-') # T("Training Score")
+    ax.plot(n_estimators_range, val_scores, label="Validation Score", marker='o', linestyle='-') # T("Validation Score")
+    ax.set_xlabel("Number of Trees") # T("Number of Trees")
+    ax.set_ylabel("Accuracy Score") # T("Accuracy Score")
+    ax.set_title(f"Score vs. Number of Trees for {model_name}") # T("Score vs. Number of Trees for {model_name}")
+    ax.legend()
+    ax.grid(True)
+    plt.tight_layout()
+    
+    optimal_n_trees_idx = np.argmax(val_scores)
+    optimal_n_trees = n_estimators_range[optimal_n_trees_idx]
+    print(f"Optimal number of trees for {model_name} based on validation score: {optimal_n_trees} (Validation Score: {val_scores[optimal_n_trees_idx]:.4f})")
+    # T("Justification: This is the number of trees where the validation score is maximized...")
+    print("Justification: This is the number of trees where the validation score is maximized, "
+          "aiming for a balance between model complexity and generalization performance before potential overfitting.")
+    return fig, optimal_n_trees # Return fig and optimal_n_trees
 
-_FONT_SET_FOR_CHINESE = False
+def plot_feature_importances(importances, feature_names, model_name, top_n=20):
+    if importances is None or len(importances) == 0:
+        print(f"No feature importances available or feature_names mismatch for {model_name}.")
+        return None
+    if len(importances) != len(feature_names):
+        print(f"Warning for {model_name}: Mismatch between number of importances ({len(importances)}) and feature_names ({len(feature_names)}). Plotting skipped.")
+        return None
 
-def set_matplotlib_font_for_chinese(font_names=None):
-    """
-    Attempts to set a Matplotlib font that supports Chinese characters.
-    Call this once before generating plots if Chinese labels are expected.
-    Args:
-        font_names (list, optional): A list of font names to try. 
-                                     Defaults to ['SimHei', 'Microsoft YaHei', 'sans-serif'].
-    """
-    global _FONT_SET_FOR_CHINESE
-    if _FONT_SET_FOR_CHINESE:
+    importances_series = pd.Series(importances, index=feature_names)
+    sorted_importances = importances_series.sort_values(ascending=False)
+    top_n = min(top_n, len(sorted_importances))
+    
+    fig, ax = plt.subplots(figsize=(10, max(6, top_n // 1.8))) # Adjusted height
+    sns.barplot(x=sorted_importances.head(top_n).values, 
+                y=sorted_importances.head(top_n).index, 
+                hue=sorted_importances.head(top_n).index,
+                legend=False,
+                ax=ax)
+    ax.set_xlabel("Importance") # T("Importance")
+    ax.set_ylabel("Feature") # T("Feature")
+    ax.set_title(f"Top {top_n} Feature Importances for {model_name}") # T("Top {top_n} Feature Importances for {model_name}")
+    plt.tight_layout()
+    return fig
+
+def plot_confusion_matrix_heatmap(y_true, y_pred, class_names_list, model_name):
+    cm = confusion_matrix(y_true, y_pred)
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.heatmap(cm, annot=False, fmt='d', cmap='Blues',
+                xticklabels=class_names_list, yticklabels=class_names_list, ax=ax)
+    ax.set_xlabel("Predicted Label") # T("Predicted Label")
+    ax.set_ylabel("True Label") # T("True Label")
+    ax.set_title(f"Confusion Matrix for {model_name}") # T("Confusion Matrix for {model_name}")
+    plt.tight_layout()
+    return fig
+
+def generate_and_save_shap_plots(model, X_sample_df_orig, feature_names_list, model_type_str, num_classes_model, class_names_list=None, plot_dir="output_plots/shap_plots"):
+    if not SHAP_AVAILABLE:
+        print("SHAP library not available. Skipping SHAP plot generation.")
         return
 
-    if font_names is None:
-        font_names = ['SimHei', 'Microsoft YaHei', 'Heiti TC', 'Arial Unicode MS', 'sans-serif']
-    
-    try:
-        current_lang = st.session_state.get('lang', 'en') # Get current language
-        if current_lang == 'zh': # Only set for Chinese
-            matplotlib.rcParams['font.family'] = 'sans-serif' # Important to set family first
-            matplotlib.rcParams['font.sans-serif'] = font_names
-            matplotlib.rcParams['axes.unicode_minus'] = False  # Resolve issues with minus sign display
-            # Test if a known Chinese character renders, very basic check
-            # fig, ax = plt.subplots()
-            # ax.text(0.5, 0.5, "你好")
-            # plt.close(fig) 
-            # print(f"Attempted to set Matplotlib font for Chinese: {matplotlib.rcParams['font.sans-serif']}") # For debugging
-            _FONT_SET_FOR_CHINESE = True # Mark as set to avoid re-running
-        else:
-            # Optionally reset to default or ensure non-Chinese fonts are prioritized for other languages
-            # For simplicity, we only actively change for 'zh'
-            pass
-            
-    except Exception as e:
-        # This warning is better shown in the UI by the calling page if font issues are detected
-        # print(f"Note: Could not set specific Matplotlib font for Chinese automatically: {e}")
-        # A general warning can be added in help_about.py or if a plot fails to render correctly.
-        pass
+    # Work on a copy to avoid modifying the original DataFrame passed from pipeline
+    X_sample_df = X_sample_df_orig.copy()
 
+    if X_sample_df.empty:
+        print(f"SHAP ({model_type_str}): X_sample_df is empty. Skipping SHAP plots.")
+        return
 
-def plot_confusion_matrix_func(y_true, y_pred, class_names=None):
-    """Generates and returns a Matplotlib figure for the confusion matrix."""
-    set_matplotlib_font_for_chinese() # Attempt to set font if Chinese is expected
-    
-    if class_names is None:
-        # These default class names might need to be translated if used directly.
-        # It's better if the calling function (e.g., in performance_visualizer.py)
-        # passes already translated class_names.
-        # For example, CLASS_NAMES could be [T("class_au_rich"), T("class_cu_rich")]
-        # However, for direct use here, we'll use the global CLASS_NAMES or provided ones.
-        effective_class_names = CLASS_NAMES 
+    # Ensure X_sample_df has feature_names_list as columns and in the correct order
+    if not isinstance(X_sample_df, pd.DataFrame):
+        X_sample_df = pd.DataFrame(X_sample_df, columns=feature_names_list)
     else:
-        effective_class_names = class_names
+        try:
+            X_sample_df = X_sample_df[feature_names_list] # Reorder/subset to match feature_names_list
+        except KeyError as e:
+            print(f"SHAP ({model_type_str}) Error: Columns in X_sample_df do not perfectly match feature_names_list. {e}")
+            print(f"X_sample_df columns: {X_sample_df.columns.tolist()}")
+            print(f"Expected feature_names_list: {feature_names_list}")
+            return
+            
+    # Ensure column names are strings, especially for TreeExplainer
+    X_sample_df.columns = [str(col) for col in feature_names_list]
+    # Also ensure the feature_names_list itself contains strings
+    feature_names_list_str = [str(fn) for fn in feature_names_list]
 
-    cm = confusion_matrix(y_true, y_pred)
-    fig, ax = plt.subplots(figsize=(6, 5))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax, 
-                xticklabels=effective_class_names, yticklabels=effective_class_names)
+
+    print(f"\nGenerating SHAP plots for {model_type_str}...")
+    if not os.path.exists(plot_dir):
+        os.makedirs(plot_dir)
+
+    try:
+        explainer = None
+        shap_values = None
+
+        if model_type_str.lower() in ['random forest', 'xgboost']:
+            explainer = shap.TreeExplainer(model)
+            # TreeExplainer might benefit from seeing the data it's explaining for background/expected value,
+            # especially if the model has internal structures sensitive to feature distributions.
+            # shap_values = explainer.shap_values(X_sample_df, check_additivity=False) # <-- Original
+            # Let's try with explainer(X_sample_df) which is the newer API style for TreeExplainer
+            # that returns a shap.Explanation object, then .values
+            explanation_object = explainer(X_sample_df)
+            shap_values = explanation_object.values # This should be (n_samples, n_features, n_classes) for multi-class
+                                                    # or (n_samples, n_features) for binary
+
+            # If shap_values from explainer(X) is 3D for multi-class (n_samples, n_features, n_classes),
+            # we need to transpose it or handle it for summary/dependence plots which often expect
+            # a list of (n_samples, n_features) arrays for multi-class.
+            # The explainer.shap_values(X) method usually returns the list directly.
+            # Let's stick to explainer.shap_values(X) for more predictable output structure.
+            shap_values = explainer.shap_values(X_sample_df, check_additivity=False)
+
+
+        elif model_type_str.lower() == 'svm' and hasattr(model, 'predict_proba'):
+            # ... (SVM KernelExplainer logic as before) ...
+            print(f"SHAP ({model_type_str}): Preparing KernelExplainer...")
+            X_kernel_sample = X_sample_df
+            if len(X_sample_df) > 50:
+                X_kernel_sample = shap.sample(X_sample_df, 50, random_state=42)
+            
+            def svm_predict_proba_for_shap(data_for_svm_np): # KernelExplainer usually passes numpy
+                # Model was trained on DataFrame with feature names.
+                # We need to convert numpy back to DataFrame with correct feature names for model.predict_proba
+                data_for_svm_df = pd.DataFrame(data_for_svm_np, columns=feature_names_list_str)
+                probas = model.predict_proba(data_for_svm_df)
+                return probas
+
+            explainer = shap.KernelExplainer(svm_predict_proba_for_shap, X_kernel_sample)
+            print(f"SHAP ({model_type_str}): Calculating SHAP values with KernelExplainer (this may take a while)...")
+            shap_values = explainer.shap_values(X_sample_df, nsamples='auto', check_additivity=False) # 'auto' nsamples for Kernel
+            print(f"SHAP ({model_type_str}): SHAP values calculated.")
+
+
+        else:
+            print(f"SHAP ({model_type_str}): Plot generation not specifically configured. Skipping.")
+            return
+
+        # --- Summary Plot (Beeswarm) ---
+        # Ensure X_sample_df passed to summary_plot has string columns if shap_values were derived using string names
+        X_sample_df_for_plot = X_sample_df.copy()
+        X_sample_df_for_plot.columns = feature_names_list_str
+
+        if isinstance(shap_values, list): # Multi-class output (list of arrays, one per class)
+            for i in range(len(shap_values)):
+                plt.figure() # Create a new figure for each plot
+                class_label = class_names_list[i] if class_names_list and i < len(class_names_list) else f"Class_{i}"
+                shap.summary_plot(shap_values[i], X_sample_df_for_plot, feature_names=feature_names_list_str, show=False, plot_type="dot")
+                plt.title(f"SHAP Summary for {class_label} - {model_type_str}")
+                plt.savefig(os.path.join(plot_dir, f"{model_type_str.replace(' ', '_').lower()}_shap_summary_{class_label.replace(' ', '_')}.png"), bbox_inches='tight')
+                plt.close()
+        elif shap_values is not None: # Binary classification or regression
+            plt.figure()
+            shap.summary_plot(shap_values, X_sample_df_for_plot, feature_names=feature_names_list_str, show=False, plot_type="dot")
+            plt.title(f"SHAP Summary Plot - {model_type_str}")
+            plt.savefig(os.path.join(plot_dir, f"{model_type_str.replace(' ', '_').lower()}_shap_summary.png"), bbox_inches='tight')
+            plt.close()
+        else:
+            print(f"SHAP ({model_type_str}): shap_values are None. Skipping summary plot.")
+            return # Cannot proceed to dependence plots if shap_values are None
+
+        print(f"SHAP summary plot(s) saved for {model_type_str}.")
+
+        # --- Dependence Plots ---
+        if isinstance(shap_values, list): 
+            abs_shap_mean_across_classes = np.mean([np.abs(s) for s in shap_values], axis=0)
+            if abs_shap_mean_across_classes.ndim == 2: # (n_samples, n_features)
+                mean_abs_shap_per_feature = np.mean(abs_shap_mean_across_classes, axis=0)
+            else: # Should not happen if shap_values[i] are (n_samples, n_features)
+                print(f"SHAP ({model_type_str}) Warning: Unexpected shape for abs_shap_mean_across_classes. Skipping dependence plots.")
+                return
+        else: # Binary
+             if shap_values.ndim == 2: # (n_samples, n_features)
+                mean_abs_shap_per_feature = np.abs(shap_values).mean(0)
+             else: # Should not happen
+                print(f"SHAP ({model_type_str}) Warning: Unexpected shape for binary shap_values. Skipping dependence plots.")
+                return
+        
+        if len(mean_abs_shap_per_feature) != len(feature_names_list_str):
+            print(f"SHAP ({model_type_str}) Warning: Mismatch in length of mean_abs_shap_per_feature ({len(mean_abs_shap_per_feature)}) and feature_names_list ({len(feature_names_list_str)}). Skipping dependence plots.")
+        else:
+            top_feature_indices = np.argsort(mean_abs_shap_per_feature)[::-1][:min(3, len(feature_names_list_str))]
+
+            for feature_idx_int in top_feature_indices:
+                feature_name_as_string = feature_names_list_str[feature_idx_int]
+                
+                if isinstance(shap_values, list): # Multi-class
+                    for i in range(len(shap_values)):
+                        plt.figure() 
+                        class_label = class_names_list[i] if class_names_list and i < len(class_names_list) else f"Class_{i}"
+                        try:
+                            # For dependence_plot, 'features' should be the DataFrame X_sample_df_for_plot
+                            # 'feature_names' in dependence_plot is for overriding axis labels if 'features' is numpy
+                            shap.dependence_plot(
+                                feature_name_as_string, # This is the feature to plot on x-axis
+                                shap_values[i],         # SHAP values for this class
+                                X_sample_df_for_plot,   # The data (Pandas DataFrame)
+                                show=False, 
+                                interaction_index=None
+                            )
+                            plt.title(f"SHAP Dependence: {feature_name_as_string} ({class_label}) - {model_type_str}")
+                            plt.savefig(os.path.join(plot_dir, f"{model_type_str.replace(' ', '_').lower()}_shap_dependence_{feature_name_as_string.replace('/', '_').replace(':', '_')}_{class_label.replace(' ', '_')}.png"), bbox_inches='tight')
+                        except Exception as e_dep:
+                            print(f"  SHAP ({model_type_str}): Error generating dependence plot for {feature_name_as_string}, class {class_label}: {e_dep}")
+                        finally:
+                            plt.close() 
+                else: # Binary
+                    plt.figure()
+                    try:
+                        shap.dependence_plot(
+                            feature_name_as_string, 
+                            shap_values, 
+                            X_sample_df_for_plot,
+                            show=False, 
+                            interaction_index=None
+                        )
+                        plt.title(f"SHAP Dependence Plot: {feature_name_as_string} - {model_type_str}")
+                        plt.savefig(os.path.join(plot_dir, f"{model_type_str.replace(' ', '_').lower()}_shap_dependence_{feature_name_as_string.replace('/', '_').replace(':', '_')}.png"), bbox_inches='tight')
+                    except Exception as e_dep:
+                        print(f"  SHAP ({model_type_str}): Error generating dependence plot for {feature_name_as_string}: {e_dep}")
+                    finally:
+                        plt.close()
+            print(f"SHAP dependence plots saved for top features of {model_type_str}.")
+
+    except Exception as e:
+        print(f"Overall SHAP Error for {model_type_str}: {e}")
+        import traceback
+        traceback.print_exc()
+        plt.close('all')
+        
+def plot_roc_curves(y_true, y_pred_probas_dict, class_names_list, num_classes):
+    fig, ax = plt.subplots(figsize=(10, 8))
     
-    ax.set_title(T("viz_cm_title", default="Confusion Matrix"))
-    ax.set_xlabel(T("viz_cm_xlabel", default="Predicted Label"))
-    ax.set_ylabel(T("viz_cm_ylabel", default="True Label"))
-    plt.tight_layout()
-    return fig
+    for model_name, y_pred_proba in y_pred_probas_dict.items():
+        if num_classes == 2:
+            if y_pred_proba.ndim == 2 and y_pred_proba.shape[1] == 2:
+                 y_scores = y_pred_proba[:, 1]
+            elif y_pred_proba.ndim == 1:
+                 y_scores = y_pred_proba
+            else:
+                print(f"Error: y_pred_proba for binary ROC for {model_name} has unexpected shape {y_pred_proba.shape}")
+                continue
+            fpr, tpr, _ = roc_curve(y_true, y_scores)
+            roc_auc = auc(fpr, tpr)
+            ax.plot(fpr, tpr, label=f'{model_name} (AUC = {roc_auc:.3f})')
+        else:
+            y_true_bin = label_binarize(y_true, classes=np.arange(num_classes))
+            if y_pred_proba.ndim != 2 or y_pred_proba.shape[1] != num_classes:
+                print(f"Error: y_pred_proba for multi-class ROC for {model_name} has unexpected shape {y_pred_proba.shape}")
+                continue
+            for i in range(num_classes):
+                fpr, tpr, _ = roc_curve(y_true_bin[:, i], y_pred_proba[:, i])
+                roc_auc = auc(fpr, tpr)
+                ax.plot(fpr, tpr, linestyle='--', label=f'{model_name} - Class {class_names_list[i]} (AUC = {roc_auc:.3f})')
+            fpr_micro, tpr_micro, _ = roc_curve(y_true_bin.ravel(), y_pred_proba.ravel())
+            roc_auc_micro = auc(fpr_micro, tpr_micro)
+            ax.plot(fpr_micro, tpr_micro, label=f'{model_name} - Micro Avg (AUC = {roc_auc_micro:.3f})', color='deeppink', linestyle=':', linewidth=3)
 
-def plot_roc_curve_func(y_true, y_pred_proba, model_name="Model"):
-    """Generates and returns a Matplotlib figure for the ROC curve."""
-    set_matplotlib_font_for_chinese()
-
-    fpr, tpr, _ = roc_curve(y_true, y_pred_proba)
-    roc_auc = auc(fpr, tpr)
-    fig, ax = plt.subplots(figsize=(7, 5))
-    
-    roc_label = T("viz_roc_label", auc_score=f"{roc_auc:.2f}", default="ROC curve (AUC = {auc_score})")
-    ax.plot(fpr, tpr, color='darkorange', lw=2, label=roc_label)
-    ax.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-    ax.set_xlim([0.0, 1.0])
-    ax.set_ylim([0.0, 1.05])
-    ax.set_xlabel(T("viz_roc_xlabel", default="False Positive Rate"))
-    ax.set_ylabel(T("viz_roc_ylabel", default="True Positive Rate"))
-    title_key = "viz_roc_title"
-    ax.set_title(T(title_key, model_name=model_name, default="Receiver Operating Characteristic (ROC) - {model_name}"))
+    ax.plot([0, 1], [0, 1], 'k--', label='Chance Level (AUC = 0.5)') # T('Chance Level (AUC = 0.5)')
+    ax.set_xlabel('False Positive Rate') # T('False Positive Rate')
+    ax.set_ylabel('True Positive Rate') # T('True Positive Rate')
+    ax.set_title('Receiver Operating Characteristic (ROC) Curves') # T('Receiver Operating Characteristic (ROC) Curves')
     ax.legend(loc="lower right")
+    ax.grid(True)
     plt.tight_layout()
     return fig
 
-def plot_precision_recall_curve_func(y_true, y_pred_proba, model_name="Model"):
-    """Generates and returns a Matplotlib figure for the Precision-Recall curve."""
-    set_matplotlib_font_for_chinese()
-
-    precision, recall, _ = precision_recall_curve(y_true, y_pred_proba)
-    avg_precision = average_precision_score(y_true, y_pred_proba)
-    fig, ax = plt.subplots(figsize=(7, 5))
-
-    pr_label = T("viz_pr_label", ap_score=f"{avg_precision:.2f}", default="PR curve (AP = {ap_score})")
-    ax.plot(recall, precision, color='blue', lw=2, label=pr_label)
-    ax.set_xlabel(T("viz_pr_xlabel", default="Recall"))
-    ax.set_ylabel(T("viz_pr_ylabel", default="Precision"))
-    title_key = "viz_pr_title"
-    ax.set_title(T(title_key, model_name=model_name, default="Precision-Recall Curve - {model_name}"))
-    ax.legend(loc="lower left") # "lower left" is standard, no need to translate the location string itself
-    plt.tight_layout()
-    return fig
-
-def get_feature_importances(model, feature_names, model_type):
-    """Extracts feature importances from tree-based or SVM models."""
-    # This function does not produce user-facing text directly that needs translation.
-    # Feature names are data-dependent.
-    if model_type in ["Random Forest", "XGBoost"] and hasattr(model, 'feature_importances_'):
-        importances = model.feature_importances_
-        return pd.Series(importances, index=feature_names).sort_values(ascending=False)
-    elif model_type == "SVM" and hasattr(model, 'coef_') and model.kernel == 'linear':
-        importances = model.coef_[0] 
-        return pd.Series(abs(importances), index=feature_names).sort_values(ascending=False)
-    return None
-
-def plot_feature_importances_func(importances_series, model_name):
-    """Generates a bar chart for feature importances."""
-    set_matplotlib_font_for_chinese()
-
-    if importances_series is None or importances_series.empty:
-        return None # No plot to generate
+def plot_precision_recall_curves(y_true, y_pred_probas_dict, class_names_list, num_classes):
+    fig, ax = plt.subplots(figsize=(10, 8))
     
-    top_n = min(len(importances_series), 15) # Show top N features
-    fig, ax = plt.subplots(figsize=(10, max(6, top_n * 0.4))) # Adjust height based on N
-    
-    # Feature names (y-axis labels) are data, not translated here.
-    sns.barplot(x=importances_series.head(top_n).values, y=importances_series.head(top_n).index, ax=ax, palette="viridis")
-    
-    title_key = "viz_fi_title"
-    ax.set_title(T(title_key, n_features=top_n, model_name=model_name, default="Top {n_features} Feature Importances - {model_name}"))
-    ax.set_xlabel(T("viz_fi_xlabel", default="Importance Score"))
-    ax.set_ylabel(T("viz_fi_ylabel", default="Features"))
+    for model_name, y_pred_proba in y_pred_probas_dict.items():
+        if num_classes == 2:
+            if y_pred_proba.ndim == 2 and y_pred_proba.shape[1] == 2:
+                 y_scores = y_pred_proba[:, 1]
+            elif y_pred_proba.ndim == 1:
+                 y_scores = y_pred_proba
+            else:
+                print(f"Error: y_pred_proba for binary PR for {model_name} has unexpected shape {y_pred_proba.shape}")
+                continue
+            precision, recall, _ = precision_recall_curve(y_true, y_scores)
+            ax.plot(recall, precision, label=f'{model_name}')
+        else:
+            y_true_bin = label_binarize(y_true, classes=np.arange(num_classes))
+            if y_pred_proba.ndim != 2 or y_pred_proba.shape[1] != num_classes:
+                print(f"Error: y_pred_proba for multi-class PR for {model_name} has unexpected shape {y_pred_proba.shape}")
+                continue
+            for i in range(num_classes):
+                precision, recall, _ = precision_recall_curve(y_true_bin[:, i], y_pred_proba[:, i])
+                ax.plot(recall, precision, linestyle='--', label=f'{model_name} - Class {class_names_list[i]}')
+            # Micro-average PR curve
+            # precision_micro, recall_micro, _ = precision_recall_curve(y_true_bin.ravel(), y_pred_proba.ravel())
+            # ax.plot(recall_micro, precision_micro, label=f'{model_name} - Micro Avg', color='deeppink', linestyle=':', linewidth=3)
+
+
+    ax.set_xlabel('Recall') # T('Recall')
+    ax.set_ylabel('Precision') # T('Precision')
+    ax.set_title('Precision-Recall Curves') # T('Precision-Recall Curves')
+    ax.legend(loc="best") # Consider loc="lower left" or "center left" for PR curves
+    ax.grid(True)
     plt.tight_layout()
     return fig

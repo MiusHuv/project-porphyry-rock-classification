@@ -9,23 +9,22 @@ import matplotlib.pyplot as plt
 # Import from your project structure
 from core.visualizer import plot_loss_vs_trees
 
-MODEL_SAVE_DIR = "trained_models" # Directory to save trained models
-PLOT_SAVE_DIR = "output_plots/model_specific" 
-
 def train_random_forest(X_train, y_train, feature_names, 
                         n_estimators_range=None, random_state=42, 
-                        plot_curves=True, model_filename="random_forest_model.joblib"):
+                        plot_curves=True, model_filename="random_forest_model.joblib",
+                        model_save_dir="models", # New parameter with default
+                        plot_save_dir="assets/eda_plots/model_specific"): # New parameter
     """
     Trains a Random Forest classifier, finds optimal number of trees,
     saves the model, and returns the best model and its feature importances.
     """
     if n_estimators_range is None:
-        n_estimators_range = list(range(50, 251, 50)) # Default range
+        n_estimators_range = list(range(50, 151, 25)) # Default range
 
     # Create directory for saving models if it doesn't exist
-    if not os.path.exists(MODEL_SAVE_DIR):
-        os.makedirs(MODEL_SAVE_DIR)
-    model_save_path = os.path.join(MODEL_SAVE_DIR, model_filename)
+    if not os.path.exists(model_save_dir):
+        os.makedirs(model_save_dir)
+    model_save_path = os.path.join(model_save_dir, model_filename)
 
     # Split training data further to get a validation set for n_estimators tuning
     if len(X_train) > 100 and len(np.unique(y_train)) > 1 : # Ensure enough samples and classes for stratification
@@ -80,17 +79,17 @@ def train_random_forest(X_train, y_train, feature_names,
     # optimal_n_trees is now returned by plot_loss_vs_trees
     loss_fig, optimal_n_trees_from_plot = None, n_estimators_range[np.argmax(val_scores)] if val_scores else n_estimators_range[0]
 
-    if plot_curves:
-        loss_fig, optimal_n_trees_from_plot = plot_loss_vs_trees(train_scores, val_scores, n_estimators_range, "Random Forest")
-        if loss_fig:
-            try:
-                loss_fig_path = os.path.join(PLOT_SAVE_DIR, "rf_loss_vs_trees.png")
-                loss_fig.savefig(loss_fig_path)
-                print(f"RF loss vs trees plot saved to {loss_fig_path}")
-                plt.close(loss_fig)
-            except Exception as e:
-                print(f"Error saving RF loss_vs_trees plot: {e}")
-                if loss_fig: plt.close(loss_fig)
+    if plot_curves and loss_fig: # loss_fig from plot_loss_vs_trees
+        if not os.path.exists(plot_save_dir):
+            os.makedirs(plot_save_dir)
+        try:
+            loss_fig_path = os.path.join(plot_save_dir, f"rf_loss_vs_trees_{model_filename.split('.')[0]}.png") # Make filename unique
+            loss_fig.savefig(loss_fig_path)
+            print(f"RF loss vs trees plot saved to {loss_fig_path}")
+            plt.close(loss_fig)
+        except Exception as e:
+            print(f"Error saving RF loss_vs_trees plot: {e}")
+            if loss_fig: plt.close(loss_fig)
     
     optimal_n_trees = optimal_n_trees_from_plot # Use the one from the plot function
 

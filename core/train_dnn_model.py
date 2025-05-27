@@ -166,9 +166,22 @@ def objective(trial, X_train_tensor, y_train_tensor, X_val_tensor, y_val_tensor,
     return best_val_acc # Optuna tries to maximize this
 
 # 4. Main Training Function
+def default_params_dict():
+    return {
+        'n_layers': 2,
+        'n_units_l0': 128,
+        'n_units_l1': 64,
+        'dropout_l0': 0.3,
+        'dropout_l1': 0.2,
+        'lr': 0.001,
+        'optimizer': 'Adam',
+        'batch_size': 64
+    }
+
 def train_pytorch_dnn(X_train, y_train, X_val, y_val, input_dim, num_classes,
                       epochs=50, n_optuna_trials=20, 
-                      project_name="pytorch_dnn_optuna", model_filename="pytorch_dnn_model.pth"):
+                      project_name="pytorch_dnn_optuna", model_filename="pytorch_dnn_model.pth",
+                      model_save_dir="models"):
     
     # Convert pandas/numpy to PyTorch tensors
     if isinstance(X_train, pd.DataFrame): X_train = X_train.values
@@ -223,6 +236,16 @@ def train_pytorch_dnn(X_train, y_train, X_val, y_val, input_dim, num_classes,
                                num_classes if num_classes > 2 else 1,
                                hidden_configs, dropout_configs).to(DEVICE)
 
+    print(f"\nUsing PyTorch DNN model with parameters:")
+    print(f"  Input Dim: {input_dim}")
+    print(f"  Num Classes: {num_classes}")
+    print(f"  Hidden Layers Config: {hidden_configs}")
+    print(f"  Dropout Rates: {dropout_configs}")
+    print(f"  Learning Rate: {lr}")
+    print(f"  Optimizer: {optimizer_name}")
+    print(f"  Batch Size: {batch_size}")
+    
+
     # Final training of the best model (or default model)
     print("\nTraining final PyTorch DNN model...")
     if num_classes == 2:
@@ -265,14 +288,15 @@ def train_pytorch_dnn(X_train, y_train, X_val, y_val, input_dim, num_classes,
     if best_model_state_dict:
         best_model.load_state_dict(best_model_state_dict)
 
+
     # Save the trained model
-    if not os.path.exists(MODEL_SAVE_DIR):
-        os.makedirs(MODEL_SAVE_DIR)
-    model_save_path = os.path.join(MODEL_SAVE_DIR, model_filename)
+    if not os.path.exists(model_save_dir): # Use passed parameter
+        os.makedirs(model_save_dir)
+    model_save_path = os.path.join(model_save_dir, model_filename) # Use passed parameter
     try:
         torch.save(best_model.state_dict(), model_save_path)
         print(f"PyTorch DNN model state_dict saved to {model_save_path}")
     except Exception as e:
         print(f"Error saving PyTorch DNN model: {e}")
-            
-    return best_model # Return the trained model instance
+
+    return best_model, best_params # Return best_params for config saving

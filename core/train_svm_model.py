@@ -5,17 +5,17 @@ import numpy as np
 import joblib
 import os
 
-MODEL_SAVE_DIR = "trained_models"
 
-def train_svm(X_train, y_train, feature_names, random_state=42, model_filename="svm_model.joblib"):
+
+def train_svm(X_train, y_train, feature_names, random_state=42, model_filename="svm_model.joblib",model_save_dir="models"):
     """
     Trains an SVM classifier using GridSearchCV, calculates permutation importances,
     saves the model, and returns the best model and its importances.
     """
     # Create directory for saving models
-    if not os.path.exists(MODEL_SAVE_DIR):
-        os.makedirs(MODEL_SAVE_DIR)
-    model_save_path = os.path.join(MODEL_SAVE_DIR, model_filename)
+    if not os.path.exists(model_save_dir):
+        os.makedirs(model_save_dir)
+    model_save_path = os.path.join(model_save_dir, model_filename)
 
     param_grid = [
         {'C': [0.1, 1, 10], 'kernel': ['linear']}, # Reduced for speed

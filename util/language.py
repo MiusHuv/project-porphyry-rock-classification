@@ -319,7 +319,13 @@ TEXTS = {
         "viz_pr_title": "Precision-Recall Curve - {model_name}",
         "viz_fi_title": "Top {n_features} Feature Importances - {model_name}",
         "viz_fi_xlabel": "Importance Score",
-        "viz_fi_ylabel": "Features"
+        "viz_fi_ylabel": "Features",
+    
+    # core/model_loader.py messages (artifact loading errors)
+        "model_loader_error_loading_artifact": "Critical error: Could not load {artifact_name}. File might be missing or corrupted: {file_path}",
+        "model_loader_error_generic_artifact": "Error loading {artifact_name}: {error_message}",
+        "model_loader_dnn_files_missing": "PyTorch DNN model files not found. Expected state_dict at '{pth_path}' and config at '{config_path}'.",
+
     },
 
 
@@ -630,7 +636,13 @@ TEXTS = {
         "viz_pr_title": "精确率-召回率曲线 - {model_name}",
         "viz_fi_title": "前 {n_features} 个特征重要性 - {model_name}",
         "viz_fi_xlabel": "重要性得分",
-        "viz_fi_ylabel": "特征"
+        "viz_fi_ylabel": "特征",
+
+    # core/model_loader.py messages (artifact loading errors)
+        "model_loader_error_loading_artifact": "关键错误: 无法加载 {artifact_name}。文件可能丢失或损坏: {file_path}",
+        "model_loader_error_generic_artifact": "加载 {artifact_name} 时出错: {error_message}",
+        "model_loader_dnn_files_missing": "PyTorch DNN 模型文件未找到。期望状态字典位于 '{pth_path}'，配置文件位于 '{config_path}'。",
+
     }
 }
 

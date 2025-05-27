@@ -1,148 +1,148 @@
-# ./page/Performance_Visualizer.py
-
+# page/performance_visualizer.py
 import streamlit as st
 import pandas as pd
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from core.visualizer import plot_confusion_matrix_func, plot_roc_curve_func, plot_precision_recall_curve_func, CLASS_NAMES
+import numpy as np
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+# Use the specific plotting functions from your visualizer if they are defined there
+# Assuming plot_confusion_matrix_func, plot_roc_curve_func, plot_precision_recall_curve_func
+# are designed to be called with y_true, y_pred/y_proba, and class_names.
+from core.visualizer import plot_confusion_matrix_heatmap as plot_confusion_matrix_func # Example alias
+from core.visualizer import plot_roc_curves as plot_roc_curve_func # Adapting
+from core.visualizer import plot_precision_recall_curves as plot_precision_recall_curve_func # Adapting
+
 from util.language import T
+from core.model_loader import load_gui_preprocessor_artifacts # To get class names
 
 def show_page():
-    st.title(T("perf_viz_title", default="Model Performance Visualizer"))
+    st.title(T("perf_viz_title"))
 
-    if 'predictions_df' not in st.session_state or st.session_state.predictions_df is None:
-        st.warning(T("perf_viz_no_predictions_warning", default="No predictions found. Please run predictions on the 'Run Prediction' page first."))
+    gui_artifacts = load_gui_preprocessor_artifacts()
+    if gui_artifacts is None or not gui_artifacts.get("label_encoder_classes"):
+        st.error("Critical error: Class names could not be loaded. Performance visualization cannot proceed.")
+        st.stop()
+    CLASS_NAMES = gui_artifacts["label_encoder_classes"] # Use loaded class names
+
+    # Check for prediction results from run_prediction page
+    if 'predictions_df_for_perf_viz' not in st.session_state or st.session_state.predictions_df_for_perf_viz is None:
+        st.warning(T("perf_viz_no_predictions_warning"))
         st.stop()
 
-    if 'true_label_column' not in st.session_state or st.session_state.true_label_column is None:
-        st.info(T("perf_viz_no_true_label_info", default="""
-            To visualize performance, please ensure you uploaded a file with a 'True Label' column
-            and selected it on the 'Run Prediction' page.
-        """))
+    # Check if true labels were provided during prediction
+    if 'true_label_column_for_perf_viz' not in st.session_state or st.session_state.true_label_column_for_perf_viz is None:
+        st.info(T("perf_viz_no_true_label_info"))
         st.stop()
 
-    predictions_df = st.session_state.predictions_df
-    true_label_col = st.session_state.true_label_column
-    
-    # Ensure raw_df_with_labels is available from session state
-    if 'raw_df_with_labels' not in st.session_state or st.session_state.raw_df_with_labels is None:
-        st.error(T("perf_viz_raw_data_missing_error", default="Original data with labels is missing from session. Please re-run prediction with true labels specified."))
-        st.stop()
-    raw_df_with_labels = st.session_state.raw_df_with_labels
+    predictions_df = st.session_state.predictions_df_for_perf_viz
+    true_label_col_name = st.session_state.true_label_column_for_perf_viz
+    raw_df_with_labels = st.session_state.raw_df_with_labels_for_perf_viz # This should have been raw_df_full
 
-    if true_label_col not in raw_df_with_labels.columns:
-        st.error(T("perf_viz_true_label_not_found_error", true_label_col=true_label_col, default=f"The specified true label column '{true_label_col}' was not found in the uploaded data."))
+    if raw_df_with_labels is None or true_label_col_name not in raw_df_with_labels.columns:
+        st.error(T("perf_viz_true_label_not_found_error", true_label_col=str(true_label_col_name)))
         st.stop()
 
+    # --- Prepare y_true and y_pred ---
+    # CLASS_NAMES[0] is 'Au-rich PCDs', CLASS_NAMES[1] is 'Cu-rich PCDs' (example from dummy data)
+    # Label mapping should align with how label_encoder was fit in training
+    # Typically, first class in label_encoder.classes_ is 0, second is 1, etc.
     label_to_int_mapping = {label: i for i, label in enumerate(CLASS_NAMES)}
-    # Ensure CLASS_NAMES has at least two elements for typical binary classification
-    if len(CLASS_NAMES) < 2:
-        st.error(T("perf_viz_class_names_error", default="CLASS_NAMES configuration is invalid for binary classification visualization."))
-        st.stop()
+    int_to_label_mapping = {i: label for i, label in enumerate(CLASS_NAMES)}
 
     try:
-        y_true_str = raw_df_with_labels[true_label_col].astype(str)
-        y_true = y_true_str.map(label_to_int_mapping)
-        
-        if y_true.isnull().any():
-            unmapped_labels = y_true_str[y_true.isnull()].unique()
-            st.error(T("perf_viz_label_mapping_error", unmapped_labels=str(unmapped_labels), true_label_col=true_label_col, class_names_list=str(CLASS_NAMES), default=f"Some true labels ({unmapped_labels}) in column '{true_label_col}' could not be mapped. Ensure labels are one of {CLASS_NAMES}."))
+        y_true_str = raw_df_with_labels[true_label_col_name].astype(str)
+        y_true_numeric = y_true_str.map(label_to_int_mapping)
+        if y_true_numeric.isnull().any():
+            unmapped = y_true_str[y_true_numeric.isnull()].unique()
+            st.error(T("perf_viz_label_mapping_error", unmapped_labels=str(unmapped), true_label_col=true_label_col_name, class_names_list=str(CLASS_NAMES)))
             st.stop()
     except KeyError:
-        st.error(T("perf_viz_true_label_mapping_key_error", true_label_col=true_label_col, class_names_list=str(CLASS_NAMES), default=f"Error mapping true labels. Ensure labels in column '{true_label_col}' are one of {CLASS_NAMES}."))
+        st.error(T("perf_viz_true_label_mapping_key_error", true_label_col=true_label_col_name, class_names_list=str(CLASS_NAMES)))
         st.stop()
 
-    # Get translated column names from run_prediction.py
-    predicted_class_col_name = T("results_col_predicted_class", default='Predicted Class')
-    prob_col_name = T("results_col_probability_cu_rich", class_name_cu_rich=CLASS_NAMES[1], default=f'Prediction Probability ({CLASS_NAMES[1]})')
+    # Get predicted class and probability columns from the predictions_df
+    # The column names in predictions_df were set using T() in run_prediction.py
+    predicted_class_col_localized_name = T("results_col_predicted_class")
+    # For probability, it was T("results_col_probability_positive", positive_class_name=CLASS_NAMES[1])
+    # We need to reconstruct this name or use a fixed key from session state if stored.
+    # Assuming CLASS_NAMES[1] is the positive class consistently.
+    prob_col_localized_name = T("results_col_probability_positive", positive_class_name=CLASS_NAMES[1])
 
-    if predicted_class_col_name not in predictions_df.columns:
-        st.error(T("perf_viz_predicted_class_col_missing", col_name=predicted_class_col_name, default=f"'{predicted_class_col_name}' column not found in prediction results."))
-        st.stop()
-    if prob_col_name not in predictions_df.columns:
-        st.error(T("perf_viz_probability_col_missing", col_name=prob_col_name, default=f"'{prob_col_name}' column not found in prediction results."))
-        st.stop()
 
-    y_pred_str = predictions_df[predicted_class_col_name]
-    y_pred = y_pred_str.map(label_to_int_mapping)
-    
-    if y_pred.isnull().any():
-        st.error(T("perf_viz_pred_label_processing_error", default="Error processing predicted classes for performance metrics."))
+    if predicted_class_col_localized_name not in predictions_df.columns:
+        st.error(T("perf_viz_predicted_class_col_missing", col_name=predicted_class_col_localized_name))
+        st.stop()
+    if prob_col_localized_name not in predictions_df.columns:
+        st.error(T("perf_viz_probability_col_missing", col_name=prob_col_localized_name))
         st.stop()
 
-    y_pred_proba = predictions_df[prob_col_name]
+    y_pred_str = predictions_df[predicted_class_col_localized_name]
+    y_pred_numeric = y_pred_str.map(label_to_int_mapping)
+    if y_pred_numeric.isnull().any():
+        st.error(T("perf_viz_pred_label_processing_error"))
+        st.stop()
 
-    st.subheader(T("perf_viz_metrics_subheader", default="Performance Metrics"))
-    
+    y_pred_proba_positive_class = predictions_df[prob_col_localized_name]
+
+    # --- Display Metrics ---
+    st.subheader(T("perf_viz_metrics_subheader"))
     col1, col2, col3, col4 = st.columns(4)
-    positive_label_numeric = label_to_int_mapping[CLASS_NAMES[1]] 
+    positive_label_numeric_value = label_to_int_mapping[CLASS_NAMES[1]] # e.g., 1 if 'Cu-rich PCDs' is class 1
+
+    col1.metric(T("perf_viz_accuracy_label"), f"{accuracy_score(y_true_numeric, y_pred_numeric):.3f}")
+    col2.metric(T("perf_viz_precision_label", class_name=CLASS_NAMES[1]), f"{precision_score(y_true_numeric, y_pred_numeric, pos_label=positive_label_numeric_value, zero_division=0):.3f}")
+    col3.metric(T("perf_viz_recall_label", class_name=CLASS_NAMES[1]), f"{recall_score(y_true_numeric, y_pred_numeric, pos_label=positive_label_numeric_value, zero_division=0):.3f}")
+    col4.metric(T("perf_viz_f1_label", class_name=CLASS_NAMES[1]), f"{f1_score(y_true_numeric, y_pred_numeric, pos_label=positive_label_numeric_value, zero_division=0):.3f}")
+
+    # --- Display Visualizations ---
+    st.subheader(T("perf_viz_visualizations_subheader"))
+    tab1, tab2, tab3 = st.tabs([
+        T("perf_viz_cm_tab"),
+        T("perf_viz_roc_tab"),
+        T("perf_viz_pr_tab")
+    ])
+
+    model_name_for_plot = st.session_state.get("selected_model_name", "Selected Model") # From run_prediction sidebar
+
+    with tab1: # Confusion Matrix
+        st.markdown(T("perf_viz_cm_title_markdown"))
+        cm_fig = plot_confusion_matrix_func(y_true_numeric, y_pred_numeric, class_names_list=CLASS_NAMES, model_name=model_name_for_plot) # Pass string names
+        if cm_fig: st.pyplot(cm_fig)
+        st.caption(T("perf_viz_cm_caption", class_name_1=CLASS_NAMES[1], class_name_0=CLASS_NAMES[0]))
+
+    # For ROC and PR, ensure y_pred_proba_positive_class is suitable.
+    # plot_roc_curves and plot_precision_recall_curves from visualizer expect a dictionary of probas.
+    # Here we have probas for one model.
     
-    col1.metric(T("perf_viz_accuracy_label", default="Accuracy"), f"{accuracy_score(y_true, y_pred):.3f}")
-    col2.metric(T("perf_viz_precision_label", class_name=CLASS_NAMES[1], default=f"Precision ({CLASS_NAMES[1]})"), f"{precision_score(y_true, y_pred, pos_label=positive_label_numeric, zero_division=0):.3f}")
-    col3.metric(T("perf_viz_recall_label", class_name=CLASS_NAMES[1], default=f"Recall ({CLASS_NAMES[1]})"), f"{recall_score(y_true, y_pred, pos_label=positive_label_numeric, zero_division=0):.3f}")
-    col4.metric(T("perf_viz_f1_label", class_name=CLASS_NAMES[1], default=f"F1-Score ({CLASS_NAMES[1]})"), f"{f1_score(y_true, y_pred, pos_label=positive_label_numeric, zero_division=0):.3f}")
-
-    st.subheader(T("perf_viz_visualizations_subheader", default="Visualizations"))
+    # Convert y_pred_proba_positive_class to the format expected by plot_roc_curve_func/plot_precision_recall_curve_func
+    # They might expect probabilities for all classes, or just the positive class for binary.
+    # The versions in your visualizer.py (plot_roc_curves, plot_precision_recall_curves)
+    # take y_pred_probas_dict. We need to adapt or make specific functions.
     
-    tab1_title = T("perf_viz_cm_tab", default="Confusion Matrix")
-    tab2_title = T("perf_viz_roc_tab", default="ROC Curve")
-    tab3_title = T("perf_viz_pr_tab", default="Precision-Recall Curve")
+    # Let's assume we adapt to single model prediction:
+    # Create a dummy y_pred_probas_dict for a single model
+    # If CLASS_NAMES[1] is positive, its probabilities are in y_pred_proba_positive_class
+    # Probabilities for CLASS_NAMES[0] would be 1 - y_pred_proba_positive_class
     
-    tab1, tab2, tab3 = st.tabs([tab1_title, tab2_title, tab3_title])
+    num_samples = len(y_pred_proba_positive_class)
+    y_probas_for_plot = np.zeros((num_samples, len(CLASS_NAMES)))
+    y_probas_for_plot[:, label_to_int_mapping[CLASS_NAMES[1]]] = y_pred_proba_positive_class
+    y_probas_for_plot[:, label_to_int_mapping[CLASS_NAMES[0]]] = 1 - y_pred_proba_positive_class
+    
+    single_model_probas_dict = {model_name_for_plot: y_probas_for_plot}
 
-    with tab1:
-        st.markdown(T("perf_viz_cm_title_markdown", default="#### Confusion Matrix"))
-        cm_fig = plot_confusion_matrix_func(y_true, y_pred, class_names=CLASS_NAMES)
-        st.pyplot(cm_fig)
-        st.caption(T("perf_viz_cm_caption", class_name_1=CLASS_NAMES[1], class_name_0=CLASS_NAMES[0], default=f"""
-            Shows the performance of the classification model.
-            Rows represent the actual classes, and columns represent the predicted classes.
-            - **{CLASS_NAMES[1]}**: Copper-dominant porphyry samples.
-            - **{CLASS_NAMES[0]}**: Gold-dominant porphyry samples.
-        """))
+    with tab2: # ROC Curve
+        st.markdown(T("perf_viz_roc_title_markdown"))
+        roc_fig = plot_roc_curve_func(y_true_numeric, single_model_probas_dict, CLASS_NAMES, num_classes=len(CLASS_NAMES))
+        if roc_fig: st.pyplot(roc_fig)
+        st.caption(T("perf_viz_roc_caption"))
 
-    with tab2:
-        st.markdown(T("perf_viz_roc_title_markdown", default="#### ROC Curve"))
-        model_name_used = T("perf_viz_selected_model_placeholder", default="Selected Model") 
-        if 'selected_model_name' in st.session_state and st.session_state.selected_model_name:
-             model_name_used = st.session_state.selected_model_name
-
-        roc_fig = plot_roc_curve_func(y_true, y_pred_proba, model_name=model_name_used)
-        st.pyplot(roc_fig)
-        st.caption(T("perf_viz_roc_caption", default="""
-            The Receiver Operating Characteristic (ROC) curve illustrates the diagnostic ability of the classifier
-            as its discrimination threshold is varied. The Area Under the Curve (AUC) measures the
-            entire two-dimensional area underneath the entire ROC curve from (0,0) to (1,1).
-            A model with 100% accuracy has an AUC of 1.0.
-        """))
-
-    with tab3:
-        st.markdown(T("perf_viz_pr_title_markdown", default="#### Precision-Recall Curve"))
-        pr_fig = plot_precision_recall_curve_func(y_true, y_pred_proba, model_name=model_name_used)
-        st.pyplot(pr_fig)
-        st.caption(T("perf_viz_pr_caption", default="""
-            The Precision-Recall curve shows the tradeoff between precision and recall for different thresholds.
-            A high area under the curve represents both high recall and high precision.
-            AP (Average Precision) summarizes this curve.
-        """))
+    with tab3: # Precision-Recall Curve
+        st.markdown(T("perf_viz_pr_title_markdown"))
+        pr_fig = plot_precision_recall_curve_func(y_true_numeric, single_model_probas_dict, CLASS_NAMES, num_classes=len(CLASS_NAMES))
+        if pr_fig: st.pyplot(pr_fig)
+        st.caption(T("perf_viz_pr_caption"))
 
 if __name__ == "__main__":
-    # Mock session state for standalone testing
     if 'lang' not in st.session_state: st.session_state.lang = "en"
-    
-    # Example data for testing
-    CLASS_NAMES = ['Au-rich', 'Cu-rich'] # Ensure this matches your actual CLASS_NAMES
-    label_to_int_mapping = {label: i for i, label in enumerate(CLASS_NAMES)}
-
-    # Mock session state data
-    st.session_state.predictions_df = pd.DataFrame({
-        T("results_col_predicted_class", default='Predicted Class'): [CLASS_NAMES[0], CLASS_NAMES[1], CLASS_NAMES[0], CLASS_NAMES[1], CLASS_NAMES[1]],
-        T("results_col_probability_cu_rich", class_name_cu_rich=CLASS_NAMES[1], default=f'Prediction Probability ({CLASS_NAMES[1]})'): [0.2, 0.8, 0.3, 0.9, 0.7]
-    })
-    st.session_state.true_label_column = 'TrueLabel'
-    st.session_state.raw_df_with_labels = pd.DataFrame({
-        'Feature1': [1,2,3,4,5],
-        'TrueLabel': [CLASS_NAMES[0], CLASS_NAMES[0], CLASS_NAMES[0], CLASS_NAMES[1], CLASS_NAMES[1]]
-    })
-    st.session_state.selected_model_name = "Test Model"
-
+    # Mock for testing
+    # ... (you'd need to mock gui_artifacts and session_state for predictions_df_for_perf_viz etc.) ...
     show_page()

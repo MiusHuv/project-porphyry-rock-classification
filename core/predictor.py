@@ -1,76 +1,79 @@
-# geochem_classifier_gui/core/predictor.py
+# core/predictor.py
+import streamlit as st
 import pandas as pd
 import numpy as np
-
+import torch # For PyTorch
 from util.language import T # Import T
 
-def make_predictions(model, processed_data, model_name):
+# Assuming CLASS_NAMES will be accessible, e.g., from a session_state or config
+# For now, predictor itself doesn't need CLASS_NAMES, it returns numeric predictions / probabilities
+
+def make_predictions(model, processed_data_df, model_name, num_classes_for_dnn): # Added num_classes for DNN
     """Makes predictions using the loaded model and processed data."""
-    if model is None or processed_data is None:
-        return None, None # Error should be handled by caller
+    if model is None or processed_data_df is None:
+        st.error("Model or processed data is None in make_predictions.") # Should be caught earlier
+        return None, None
 
     try:
         if model_name in ["Random Forest", "XGBoost", "SVM"]:
-            # Scikit-learn compatible models often have predict and predict_proba
-            predictions = model.predict(processed_data)
-            # For probabilities, usually [prob_class_0, prob_class_1]
-            # We need the probability of the positive class (e.g., 'Cu-rich')
-            # Assuming 'Cu-rich' is class 1 after label encoding during training
-            # This needs to be consistent with your training!
+            # Ensure data is numpy for sklearn models if they expect it (though DataFrames usually work)
+            # processed_data_np = processed_data_df.values
+            predictions = model.predict(processed_data_df) # Use DataFrame directly
+            
             if hasattr(model, "predict_proba"):
-                probabilities = model.predict_proba(processed_data)[:, 1] # Prob of positive class
+                probabilities_all_classes = model.predict_proba(processed_data_df)
+                # For binary, probabilities_all_classes is (n_samples, 2). We need prob of positive class (class 1)
+                # For multi-class, this will be (n_samples, n_classes)
+                # The run_prediction page currently expects single probability for CLASS_NAMES[1]
+                # This needs careful handling if we expand to multi-class later.
+                # For now, assume binary classification where CLASS_NAMES[1] is the positive class.
+                # The label encoder used in training should map CLASS_NAMES[1] to index 1.
+                probabilities_positive_class = probabilities_all_classes[:, 1]
+
             elif hasattr(model, "decision_function"): # For SVM without probability=True
-                # Decision function scores might not be probabilities but can be used as confidence
-                # To make it behave somewhat like probability (0-1 range), you might need to scale it,
-                # but for now, returning raw scores. Or, ensure SVM has probability=True.
-                decision_scores = model.decision_function(processed_data)
-                # Simple sigmoid scaling for demonstration, not a true probability
-                # probabilities = 1 / (1 + np.exp(-decision_scores)) 
-                # For simplicity, if not true probabilities, it might be better to indicate this or handle upstream
-                # For now, let's assume if predict_proba is not there, we might not have reliable probabilities.
-                # Or, the calling function should be aware of what decision_function returns.
-                # Let's return raw decision scores if predict_proba is absent for SVM.
-                # The calling code (run_prediction.py) will need to handle this if it expects probabilities.
-                # For now, returning a placeholder or the decision scores directly.
-                # For consistency, let's return a placeholder if true probabilities are not available.
-                probabilities = np.array([0.5] * len(predictions)) # Placeholder
-                # A better placeholder might be just the decision scores if the model is SVM
-                if model_name == "SVM":
-                     probabilities = model.decision_function(processed_data) # Return decision scores for SVM
-                else: # For other models if predict_proba is missing (unlikely for RF/XGB)
-                     probabilities = np.array([np.nan] * len(predictions))
-
-
+                decision_scores = model.decision_function(processed_data_df)
+                # Simple sigmoid scaling for demonstration if true probabilities aren't available
+                # This is not a true probability. Consider ensuring SVM is trained with probability=True.
+                probabilities_positive_class = 1 / (1 + np.exp(-decision_scores))
+                if probabilities_positive_class.ndim == 2 and probabilities_positive_class.shape[1] ==1:
+                    probabilities_positive_class = probabilities_positive_class.flatten()
             else:
-                probabilities = np.array([np.nan] * len(predictions)) # Placeholder if no proba/decision_func
+                # Fallback if no probability mechanism
+                probabilities_positive_class = np.full(len(predictions), 0.5) # Placeholder
+                st.warning(f"Model {model_name} does not have predict_proba or decision_function. Probabilities are placeholders.")
 
-        elif model_name == "DNN-Keras":
-            # Ensure Keras is imported and model is a Keras model
-            # from tensorflow import keras
-            # if not isinstance(model, keras.Model):
-            #     raise ValueError(T("predictor_dnn_invalid_model_type", default="DNN-Keras model is not a valid Keras model instance."))
-            
-            raw_probabilities = model.predict(processed_data)
-            if raw_probabilities.ndim > 1 and raw_probabilities.shape[1] > 1: # Softmax output for multi-class (even if used for binary)
-                probabilities = raw_probabilities[:, 1] # Assuming class 1 is 'Cu-rich'
-                predictions = np.argmax(raw_probabilities, axis=1)
-            else: # Sigmoid output for binary classification
-                probabilities = raw_probabilities.flatten()
-                predictions = (probabilities > 0.5).astype(int) # Thresholding at 0.5
-            
+        elif model_name == "PyTorch DNN":
+            # Convert DataFrame to PyTorch tensor
+            # Ensure processed_data_df columns are in the exact order the model expects
+            # This should be guaranteed by preprocess_data_for_prediction using trained_feature_names
+            data_tensor = torch.tensor(processed_data_df.values, dtype=torch.float32).to(model.network[0].weight.device) # Get device from model
+
+            with torch.no_grad():
+                outputs = model(data_tensor)
+
+            if num_classes_for_dnn == 2: # Binary classification with BCEWithLogitsLoss
+                # Output is raw logits (1 neuron for binary)
+                probabilities_positive_class = torch.sigmoid(outputs).cpu().numpy().flatten()
+                predictions = (probabilities_positive_class > 0.5).astype(int)
+            else: # Multi-class classification with CrossEntropyLoss
+                # Output is raw logits (num_classes neurons)
+                probabilities_all_classes = torch.softmax(outputs, dim=1).cpu().numpy()
+                predictions = np.argmax(probabilities_all_classes, axis=1)
+                # For multi-class, how to define 'probabilities_positive_class' depends on what's needed downstream.
+                # If a specific class's probability is needed, select it.
+                # For now, for consistency with binary, this might need adjustment or downstream handling.
+                # Let's assume for now the GUI wants prob of the class mapped to '1' by label encoder.
+                if probabilities_all_classes.shape[1] > 1:
+                    probabilities_positive_class = probabilities_all_classes[:, 1] # Prob of class index 1
+                else: # Should not happen for multi-class > 2
+                    probabilities_positive_class = probabilities_all_classes.flatten()
+
+
         else:
-            # This error will be raised if model_name is not recognized
-            raise ValueError(T("predictor_unknown_model_type", model_name=model_name, default=f"Unknown model type for prediction: {model_name}."))
+            raise ValueError(T("predictor_unknown_model_type", model_name=model_name))
 
-        return predictions, probabilities
+        return predictions, probabilities_positive_class
 
     except Exception as e:
-        # Errors during the actual prediction step are often critical.
-        # It's better to let them propagate or be caught by the calling Streamlit page
-        # so a user-friendly message can be displayed there.
-        # For example, run_prediction.py can catch this and show st.error().
-        # Adding a generic error here might be redundant if the caller handles it.
-        # If we do handle it here, it should be a clear message.
-        # For now, re-raising to be handled by the caller, which is good practice.
-        # Or return None, None and log the error
-        raise RuntimeError(f"Prediction error with {model_name}: {e}")
+        # Using f-string for model name, T() for base string
+        raise RuntimeError(T("run_pred_error_runtime_prediction", model_name=model_name, error_message=str(e))) # Modified key for run_pred context

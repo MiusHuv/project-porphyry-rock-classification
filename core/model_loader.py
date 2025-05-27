@@ -1,75 +1,120 @@
-# geochem_classifier_gui/core/model_loader.py
+# core/model_loader.py
 import joblib
 import xgboost as xgb
-# from tensorflow import keras # Or from keras.models import load_model
-import streamlit as st
+import torch # For PyTorch
+import json # For loading JSON configs
 import os
-from util.language import T # Import T
+import streamlit as st
+from util.language import T
+from pathlib import Path
+# Import the DNN model class definition
+from core.train_dnn_model import SimpleDNN, DEVICE # Ensure DEVICE is also imported or defined
 
-MODEL_DIR = "models" # Define your model directory
+MODEL_DIR = "models" # Adjust path as needed
 
-# Ensure the model directory exists or handle errors
-if not os.path.exists(MODEL_DIR):
-    # This is a critical error for the app to function.
-    # This print is for the console, not the Streamlit UI.
-    # If you want a UI error, you'd need to raise an exception or handle it in the app's main flow.
-    print(f"CRITICAL ERROR: Model directory '{MODEL_DIR}' not found!")
-    # For a UI error, this would need to be handled where functions from this module are called,
-    # as st.error() might not be appropriate at module load time if it causes issues.
-    # A possible approach is to have functions return a specific error status or raise an exception.
+
+# Global cache for preprocessor parts
+@st.cache_resource
+def load_gui_preprocessor_artifacts():
+    artifacts = {
+        "scaler": None,
+        "label_encoder_classes": None,
+        "final_feature_names": None
+    }
+    model_base_dir = Path(__file__).parent.parent / "models"
+    scaler_path = model_base_dir / "scaler.joblib"
+    le_classes_path = model_base_dir / "label_encoder_classes.json"
+    feature_names_path = model_base_dir / "final_feature_names.json"
+
+    try:
+        if scaler_path.exists():
+            artifacts["scaler"] = joblib.load(scaler_path)
+            print(f"Scaler loaded from {scaler_path}") # Debug log
+        else:
+            st.error(T("model_loader_error_loading_artifact", artifact_name="Scaler", file_path=scaler_path)) # New key
+            print(f"Scaler file not found at {scaler_path}") # Debug log
+    except Exception as e:
+        st.error(T("model_loader_error_generic_artifact", artifact_name="Scaler", error_message=str(e))) # New key
+
+    try:
+        if le_classes_path.exists():
+            with open(le_classes_path, 'r') as f:
+                artifacts["label_encoder_classes"] = json.load(f)
+            print(f"Label encoder classes loaded from {le_classes_path}") # Debug log
+        else:
+            st.error(T("model_loader_error_loading_artifact", artifact_name="Label Encoder Classes", file_path=le_classes_path))
+            print(f"Label encoder classes file not found at {le_classes_path}") # Debug log
+    except Exception as e:
+        st.error(T("model_loader_error_generic_artifact", artifact_name="Label Encoder Classes", error_message=str(e)))
+
+    try:
+        if feature_names_path.exists():
+            with open(feature_names_path, 'r') as f:
+                artifacts["final_feature_names"] = json.load(f)
+            print(f"Final feature names loaded from {feature_names_path}") # Debug log
+        else:
+            st.error(T("model_loader_error_loading_artifact", artifact_name="Final Feature Names", file_path=feature_names_path))
+            print(f"Final feature names file not found at {feature_names_path}") # Debug log
+    except Exception as e:
+        st.error(T("model_loader_error_generic_artifact", artifact_name="Final Feature Names", error_message=str(e)))
+
+    if not all(artifacts.values()): # If any failed to load
+        return None # Indicate failure
+    return artifacts
 
 
 def load_selected_model(model_name):
-    """Loads a specific pre-trained model."""
+    model_base_dir = Path(__file__).parent.parent / "models"
     model_path_map = {
-        "Random Forest": os.path.join(MODEL_DIR, "random_forest_model.joblib"),
-        "XGBoost": os.path.join(MODEL_DIR, "xgboost_model.json"), # or .ubj, .pkl etc.
-        "SVM": os.path.join(MODEL_DIR, "svm_model.joblib"),
-        "DNN-Keras": os.path.join(MODEL_DIR, "dnn_keras_model.h5") # Assuming you will add Keras loading logic
+        "Random Forest": model_base_dir / "random_forest_model.joblib",
+        "XGBoost": model_base_dir / "xgboost_model.joblib",
+        "SVM": model_base_dir / "svm_model.joblib",
+        "PyTorch DNN": {
+            "state_dict": model_base_dir / "pytorch_dnn_model.pth",
+            "config": model_base_dir / "pytorch_dnn_model_config.json"
+        }
     }
-    model_file = model_path_map.get(model_name)
+    model_info_or_path = model_path_map.get(model_name)
 
-    if not model_file or not os.path.exists(model_file):
-        st.error(T("model_loader_file_not_found", model_name=model_name, file_path=str(model_file), default=f"Model file for {model_name} not found at {model_file}. Please ensure models are correctly placed."))
+    if not model_info_or_path:
+        st.error(T("model_loader_invalid_model_name", model_name=model_name))
         return None
 
     try:
-        if model_name == "Random Forest" or model_name == "SVM":
-            model = joblib.load(model_file)
-        elif model_name == "XGBoost":
-            # For scikit-learn wrapper:
-            # model = joblib.load(model_file) 
-            # For native XGBoost:
-            model = xgb.Booster() # Or xgb.XGBClassifier() if you saved the scikit-learn wrapper
-            model.load_model(model_file) # If saved XGBoost model
-            # If you saved an XGBClassifier object with joblib:
-            # model = joblib.load(model_file)
-        elif model_name == "DNN-Keras":
-            # from tensorflow import keras # Ensure Keras is imported if you use this
-            # model = keras.models.load_model(model_file)
-            # For now, as Keras is commented out, let's treat it as an unloaded model type
-            st.error(T("model_loader_dnn_not_implemented", default="DNN-Keras model loading is not yet fully implemented in model_loader.py."))
-            return None
+        if model_name in ["Random Forest", "SVM", "XGBoost"]: # XGBoost now loaded with joblib
+            model_path = model_info_or_path # It's a Path object
+            if not model_path.exists():
+                st.error(T("model_loader_file_not_found", model_name=model_name, file_path=str(model_path)))
+                return None
+            model = joblib.load(model_path) # Use joblib.load for these models
+
+        elif model_name == "PyTorch DNN":
+            pth_path = model_info_or_path["state_dict"]
+            config_path = model_info_or_path["config"]
+            if not pth_path.exists() or not config_path.exists():
+                st.error(T("model_loader_dnn_files_missing", pth_path=str(pth_path), config_path=str(config_path)))
+                return None
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            model = SimpleDNN(
+                input_dim=config['input_dim'],
+                num_classes=config['num_classes'] if config['num_classes'] > 2 else 1, 
+                hidden_layers_config=config['hidden_layers_config'],
+                dropout_rates=config['dropout_rates']
+            ).to(DEVICE)
+            model.load_state_dict(torch.load(pth_path, map_location=DEVICE))
+            model.eval()
         else:
-            # This case should ideally not be reached if model_name is from a controlled list
-            st.error(T("model_loader_invalid_model_name", model_name=model_name, default=f"Invalid model name selected: {model_name}."))
+            st.error(T("model_loader_invalid_model_name", model_name=model_name))
             return None
-        # st.success(T("model_loader_success_model_load", model_name=model_name, default=f"{model_name} model loaded successfully.")) # If you want success messages
+        # st.success(T("model_loader_success_model_load", model_name=model_name)) # Optional
         return model
     except Exception as e:
-        st.error(T("model_loader_error_loading_model", model_name=model_name, error_message=str(e), default=f"Error loading {model_name} model: {e}"))
+        st.error(T("model_loader_error_loading_model", model_name=model_name, error_message=str(e)))
+        if model_name == "XGBoost":
+            import traceback
+            st.error(f"XGBoost loading traceback: {traceback.format_exc()}")
         return None
 
-def load_preprocessor_object():
-    """Loads the saved preprocessor object (e.g., scaler, CLR transformer)."""
-    preprocessor_path = os.path.join(MODEL_DIR, "preprocessor.joblib")
-    if not os.path.exists(preprocessor_path):
-        st.error(T("model_loader_preprocessor_not_found", file_path=preprocessor_path, default=f"Preprocessor file not found at {preprocessor_path}. This is critical for predictions."))
-        return None
-    try:
-        preprocessor = joblib.load(preprocessor_path)
-        # st.info(T("model_loader_success_preprocessor_load", default="Preprocessor loaded successfully.")) # If you want info messages
-        return preprocessor
-    except Exception as e:
-        st.error(T("model_loader_error_loading_preprocessor", error_message=str(e), default=f"Error loading preprocessor: {e}"))
-        return None
+# `load_preprocessor_object` is replaced by `load_gui_preprocessor_artifacts` which returns a dict.
+# Pages will call `load_gui_preprocessor_artifacts` and access `artifacts["scaler"]`, etc.

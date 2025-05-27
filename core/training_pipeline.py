@@ -4,8 +4,15 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 import os
 import matplotlib.pyplot as plt
+import torch # Add torch import
 
-from core.data_handler import load_and_prepare_data
+from skbio.stats.composition import clr 
+from sklearn.preprocessing import StandardScaler
+
+import joblib
+import json
+
+from core.data_handler import load_and_prepare_data, RAW_EXPECTED_GEOCHEMICAL_FEATURES
 from core.visualizer import (
     plot_feature_importances, 
     plot_confusion_matrix_heatmap, 
@@ -25,17 +32,24 @@ from core.train_svm_model import train_svm
 from core.train_dnn_model import train_pytorch_dnn, SimpleDNN, DEVICE # Import SimpleDNN and DEVICE for prediction
 from core.train_xgboost_model import train_xgboost
 from core.data_handler import CLASS_NAMES, LABEL_TO_INT_MAPPING, INT_TO_LABEL_MAPPING
-import torch # Add torch import
 
-from skbio.stats.composition import clr 
-from sklearn.preprocessing import StandardScaler
-
-import joblib
-import json
 
 OUTPUT_PLOT_DIR = "output_plots"
 if not os.path.exists(OUTPUT_PLOT_DIR):
     os.makedirs(OUTPUT_PLOT_DIR)
+
+MODELS_DIR = "models"
+ASSETS_DIR = "assets"
+EDA_PLOTS_DIR = os.path.join(ASSETS_DIR, "eda_plots")
+SHAP_PLOTS_DIR = os.path.join(ASSETS_DIR, "shap_plots") # For GUI consistency
+MODEL_SPECIFIC_PLOTS_DIR = os.path.join(EDA_PLOTS_DIR, "model_specific") # For RF/XGBoost n_estimators plots
+
+# Create directories if they don't exist
+os.makedirs(MODELS_DIR, exist_ok=True)
+os.makedirs(ASSETS_DIR, exist_ok=True)
+os.makedirs(EDA_PLOTS_DIR, exist_ok=True)
+os.makedirs(SHAP_PLOTS_DIR, exist_ok=True)
+os.makedirs(MODEL_SPECIFIC_PLOTS_DIR, exist_ok=True)
 
 # Function to save figures
 def save_figure(fig, filename_prefix, plot_dir=OUTPUT_PLOT_DIR):
@@ -47,8 +61,8 @@ def save_figure(fig, filename_prefix, plot_dir=OUTPUT_PLOT_DIR):
         print(f"Plot saved to {filepath}")
         plt.close(fig) # Important to close the figure to free memory
     except Exception as e:
-        print(f"Error saving figure {filename_prefix}: {e}")
-        plt.close(fig) # Still try to close
+        print(f"Error saving figure {filepath}: {e}")
+        if fig: plt.close(fig)
 
 
 def create_dummy_data_if_not_exists(filepath, target_col_name, all_expected_cols):
@@ -112,8 +126,6 @@ def run_training_pipeline():
     TARGET_COLUMN = "Label"  # Updated based on image
     DATA_FILE_PATH = "data/2025-Project-Data(ESM Table 1).csv"
 
-
-    
     # Define all expected columns based on the image for dummy data generation and EDA
     # (Order might not be identical to image but names should match)
     ALL_EXPECTED_COLS_FROM_IMAGE = [
@@ -140,314 +152,310 @@ def run_training_pipeline():
 
     # --- 1. Load and Preprocess Data ---
     print("\n--- Stage 1: Data Loading and Preprocessing ---")
-    prepared_data = load_and_prepare_data(
-        actual_data_file_path, 
-        TARGET_COLUMN, 
-        test_size=0.25, 
+    prepared_data_gui = load_and_prepare_data(
+        actual_data_file_path,
+        TARGET_COLUMN,
+        test_size=0.25,
         random_state=RANDOM_STATE,
-        apply_outlier_capping_main=True, # Enable outlier capping
-        cols_for_log_transform_main=None # No other specific cols for log transform for now
+        apply_outlier_capping_main=True,
+        cols_for_log_transform_main=None, # Specify if any non-CLR numeric cols need log
+        gui_model_preparation=True # THIS IS KEY: ensures 'Deposit' is dropped
     )
     
-    if prepared_data is None:
-        print("Pipeline halted due to data loading/preparation errors.")
+    if prepared_data_gui is None:
+        print("Pipeline halted: Data preparation for GUI models failed.")
         return
         
-    (X_train, X_test, y_train, y_test, 
-     feature_names, class_names, num_classes, 
-     label_encoder, scaler, X_processed_for_eda, df_original_for_ratio_plots) = prepared_data
+    (X_train, X_test, y_train, y_test,
+     final_feature_names_for_model, class_names_from_encoder, num_classes,
+     label_encoder_obj, scaler_obj,
+     X_processed_for_eda_plots, df_original_for_ratio_plots) = prepared_data_gui
 
-    # --- 2. Exploratory Data Analysis ---
+    # --- Save Preprocessing Artifacts for GUI ---
+    print("\n--- Saving Preprocessing Artifacts for GUI ---")
+    joblib.dump(scaler_obj, os.path.join(MODELS_DIR, "scaler.joblib"))
+    print(f"Scaler saved to {os.path.join(MODELS_DIR, 'scaler.joblib')}")
+
+    with open(os.path.join(MODELS_DIR, "label_encoder_classes.json"), 'w') as f:
+        json.dump(class_names_from_encoder, f)
+    print(f"Label encoder classes saved to {os.path.join(MODELS_DIR, 'label_encoder_classes.json')}: {class_names_from_encoder}")
+
+    with open(os.path.join(MODELS_DIR, "final_feature_names.json"), 'w') as f:
+        json.dump(final_feature_names_for_model, f)
+    print(f"Final feature names for model input saved to {os.path.join(MODELS_DIR, 'final_feature_names.json')}")
+
+    # --- 2. Exploratory Data Analysis (Using data processed appropriately for EDA) ---
     print("\n--- Stage 2: Exploratory Data Analysis ---")
-    
-    # For EDA plots that need CLR-transformed data (scatter matrix, correlation, PCA):
-    # X_processed_for_eda is X after CLR, log (if any), and OHE, but before scaling.
-    # Add the original target label back for hue.
+    # X_processed_for_eda_plots is from load_and_prepare_data,
+    # which is X after CLR/log but before OHE (if gui_model_preparation=True, categoricals like Deposit are already dropped)
+    # and before train/test split or scaling. Add target for hue.
     if TARGET_COLUMN in df_original_for_ratio_plots.columns:
-        # Use original target for hue where possible for better interpretability
-        X_processed_for_eda['EDA_Target_Hue'] = df_original_for_ratio_plots[TARGET_COLUMN].loc[X_processed_for_eda.index]
-    else: # Fallback
-        # This alignment is tricky if indices don't match perfectly after processing
-        # It's safer to use the encoded y if direct mapping of original target is complex
-        # For simplicity, assuming index alignment or using encoded y.
-        # y_full_encoded = label_encoder.transform(df_original_for_ratio_plots[TARGET_COLUMN])
-        # X_processed_for_eda['EDA_Target_Hue_Encoded'] = y_full_encoded # if using encoded
-        pass
+         # Use original target for hue, aligning indices carefully
+        temp_eda_df = X_processed_for_eda_plots.copy()
+        # Ensure index alignment for adding target column
+        temp_eda_df['EDA_Target_Hue'] = df_original_for_ratio_plots.loc[temp_eda_df.index, TARGET_COLUMN]
 
-
-    # Key elements for scatter matrix should now be the transformed names (_clr, _log)
-    key_elements_for_scatter_clr = [col for col in X_processed_for_eda.columns if '_clr' in col][:10] # Focus on CLR
-    if not key_elements_for_scatter_clr and feature_names:
-         key_elements_for_scatter_clr = [col for col in feature_names if '_log' in col or 'Deposit' in col][:10]
-
-
-    eda_scatter_fig = plot_pair_scatter_matrix(X_processed_for_eda, 
-                                               key_elements=key_elements_for_scatter_clr, 
-                                               target_column_name='EDA_Target_Hue' if 'EDA_Target_Hue' in X_processed_for_eda else None)
-    save_figure(eda_scatter_fig, "eda_pair_scatter_matrix_after_clr")
-
-    eda_corr_fig = plot_correlation_heatmap(X_processed_for_eda.select_dtypes(include=np.number), method='pearson')
-    save_figure(eda_corr_fig, "eda_correlation_heatmap_after_clr")
-
-    # For PCA: Use X_processed_for_eda (CLR/log/OHE, but unscaled), then scale it for PCA.
-    X_pca_candidate_df = X_processed_for_eda.select_dtypes(include=np.number)
-    if not X_pca_candidate_df.empty:
-        pca_feature_names_viz = X_pca_candidate_df.columns.tolist()
-        X_pca_input_scaled = StandardScaler().fit_transform(X_pca_candidate_df)
-        
-        # Get y_labels corresponding to X_processed_for_eda (full dataset before split)
-        y_full_encoded_for_pca = label_encoder.transform(df_original_for_ratio_plots.loc[X_processed_for_eda.index, TARGET_COLUMN])
-
-        pca_fig = plot_pca_biplot(X_pca_input_scaled, y_full_encoded_for_pca, class_names, pca_feature_names_viz)
-        save_figure(pca_fig, "eda_pca_biplot_on_clr_data")
     else:
-        print("Skipping PCA plot as no numeric features were found in X_processed_for_eda.")
+        temp_eda_df = X_processed_for_eda_plots.copy()
+        # If target column isn't in original df (shouldn't happen with create_dummy), handle gracefully
+        print("Warning: Target column not found in df_original_for_ratio_plots for EDA hue.")
 
-    # Ratio plots use df_original_for_ratio_plots
+
+    # Scatter Matrix: focus on CLR transformed features if available, or other key numeric features
+    key_elements_for_scatter = [col for col in temp_eda_df.columns if '_clr' in col][:10]
+    if not key_elements_for_scatter: # Fallback if no CLR features (e.g. skbio failed or not used)
+        key_elements_for_scatter = [col for col in temp_eda_df.select_dtypes(include=np.number).columns if col != 'EDA_Target_Hue'][:10]
+
+    if key_elements_for_scatter:
+        eda_scatter_fig = plot_pair_scatter_matrix(temp_eda_df,
+                                                   key_elements=key_elements_for_scatter,
+                                                   target_column_name='EDA_Target_Hue' if 'EDA_Target_Hue' in temp_eda_df else None)
+        save_figure(eda_scatter_fig, "eda_pair_scatter_matrix_after_transforms.png", EDA_PLOTS_DIR)
+    else:
+        print("Skipping EDA pair scatter matrix due to lack of suitable key elements.")
+
+    # Correlation Heatmap
+    eda_corr_fig = plot_correlation_heatmap(temp_eda_df.drop(columns=['EDA_Target_Hue'], errors='ignore').select_dtypes(include=np.number))
+    save_figure(eda_corr_fig, "eda_correlation_heatmap_after_transforms.png", EDA_PLOTS_DIR)
+
+    # PCA Biplot: Use the same X_processed_for_eda_plots but scale it specifically for PCA
+    X_pca_candidate_df = temp_eda_df.drop(columns=['EDA_Target_Hue'], errors='ignore').select_dtypes(include=np.number)
+    if not X_pca_candidate_df.empty and X_pca_candidate_df.shape[1] >=2:
+        pca_feature_names_for_plot = X_pca_candidate_df.columns.tolist()
+        X_pca_input_scaled = StandardScaler().fit_transform(X_pca_candidate_df) # Scale for PCA
+
+        # Get y_labels corresponding to X_processed_for_eda (full dataset before split)
+        # This requires careful index alignment.
+        y_full_encoded_for_pca = label_encoder_obj.transform(df_original_for_ratio_plots.loc[X_pca_candidate_df.index, TARGET_COLUMN])
+
+        pca_fig = plot_pca_biplot(X_pca_input_scaled, y_full_encoded_for_pca, class_names_from_encoder, pca_feature_names_for_plot)
+        save_figure(pca_fig, "eda_pca_biplot_after_transforms.png", EDA_PLOTS_DIR)
+    else:
+        print("Skipping PCA plot as not enough numeric features were found or data is empty.")
+
+    # Ratio plots use df_original_for_ratio_plots (which has minimal imputation for these specific columns if needed)
     k2o_ratio_fig = plot_k2o_na2o_vs_sio2(df_original_for_ratio_plots, GEOCHEM_K2O_COL, GEOCHEM_NA2O_COL, GEOCHEM_SIO2_COL, target_col=TARGET_COLUMN)
-    save_figure(k2o_ratio_fig, "eda_k2o_na2o_vs_sio2_ratio")
+    save_figure(k2o_ratio_fig, "eda_k2o_na2o_vs_sio2_ratio.png", EDA_PLOTS_DIR)
 
-    # --- 3. Train and Evaluate Models ---
-    # (Model training and evaluation section remains largely the same as previous version)
+    sr_y_ratio_fig = plot_sr_y_vs_y(df_original_for_ratio_plots, GEOCHEM_SR_COL, GEOCHEM_Y_COL, target_col=TARGET_COLUMN)
+    save_figure(sr_y_ratio_fig, "eda_sr_y_vs_y_ratio.png", EDA_PLOTS_DIR)
+
+
+     # --- 3. Train and Evaluate Models ---
     print("\n--- Stage 3: Model Training and Evaluation ---")
-    models_predictions = {} 
+    models_predictions_proba = {}
+    trained_models = {} # To store trained model objects for SHAP
+
+    # Ensure X_train, X_test are DataFrames with feature names for models if they expect it
+    # (they are already DataFrames from load_and_prepare_data)
 
     print("\n-- Training Random Forest --")
+    # Pass MODEL_SPECIFIC_PLOTS_DIR to train_random_forest if it saves plots internally
     rf_model, rf_importances = train_random_forest(
-        X_train.copy(), y_train.copy(), feature_names, 
-        random_state=RANDOM_STATE, plot_curves=True
+        X_train.copy(), y_train.copy(), final_feature_names_for_model, # Use names model was trained on
+        random_state=RANDOM_STATE, plot_curves=True,
+        model_filename="random_forest_model.joblib", # Will be saved in "models/"
+        plot_save_dir=MODEL_SPECIFIC_PLOTS_DIR # Pass the correct plot dir
     )
     if rf_model:
+        trained_models['Random Forest'] = rf_model
         y_pred_rf = rf_model.predict(X_test)
         y_pred_proba_rf = rf_model.predict_proba(X_test)
-        models_predictions['Random Forest'] = y_pred_proba_rf
+        models_predictions_proba['Random Forest'] = y_pred_proba_rf
         print("\nRandom Forest - Test Set Evaluation:")
-        print(classification_report(y_test, y_pred_rf, target_names=class_names, zero_division=0))
-        plot_confusion_matrix_heatmap(y_test, y_pred_rf, class_names, "Random Forest")
-        rf_cm_fig = plot_confusion_matrix_heatmap(y_test, y_pred_rf, class_names, "Random Forest")
-        save_figure(rf_cm_fig, "rf_confusion_matrix")
-
+        print(classification_report(y_test, y_pred_rf, target_names=class_names_from_encoder, zero_division=0))
+        rf_cm_fig = plot_confusion_matrix_heatmap(y_test, y_pred_rf, class_names_from_encoder, "Random Forest")
+        save_figure(rf_cm_fig, "rf_confusion_matrix.png", EDA_PLOTS_DIR)
         if rf_importances is not None and rf_importances.any():
-            rf_fi_fig = plot_feature_importances(rf_importances, feature_names, "Random Forest")
-            save_figure(rf_fi_fig, "rf_feature_importances")
+            rf_fi_fig = plot_feature_importances(rf_importances, final_feature_names_for_model, "Random Forest")
+            save_figure(rf_fi_fig, "rf_feature_importances.png", EDA_PLOTS_DIR)
 
     print("\n-- Training SVM --")
     svm_model, svm_importances = train_svm(
-        X_train.copy(), y_train.copy(), feature_names, random_state=RANDOM_STATE
+        X_train.copy(), y_train.copy(), final_feature_names_for_model, random_state=RANDOM_STATE,
+        model_filename="svm_model.joblib" # Will be saved in "models/"
     )
     if svm_model:
+        trained_models['SVM'] = svm_model
         y_pred_svm = svm_model.predict(X_test)
         y_pred_proba_svm = svm_model.predict_proba(X_test)
-        models_predictions['SVM'] = y_pred_proba_svm
+        models_predictions_proba['SVM'] = y_pred_proba_svm
         print("\nSVM - Test Set Evaluation:")
-        print(classification_report(y_test, y_pred_svm, target_names=class_names, zero_division=0))
-        plot_confusion_matrix_heatmap(y_test, y_pred_svm, class_names, "SVM")
-        svm_cm_fig = plot_confusion_matrix_heatmap(y_test, y_pred_svm, class_names, "SVM")
-        save_figure(svm_cm_fig, "svm_confusion_matrix")
-        # SVM feature importances are typically not directly available, but if using permutation importance:
-        if hasattr(svm_model, 'feature_importances_'):
-            svm_importances = svm_model.feature_importances_
-        else:
-            svm_importances = None
-        if svm_importances is not None and svm_importances.any():
-            svm_fi_fig = plot_feature_importances(svm_importances, feature_names, "SVM (Permutation)")
-            save_figure(svm_fi_fig, "svm_feature_importances")  
+        print(classification_report(y_test, y_pred_svm, target_names=class_names_from_encoder, zero_division=0))
+        svm_cm_fig = plot_confusion_matrix_heatmap(y_test, y_pred_svm, class_names_from_encoder, "SVM")
+        save_figure(svm_cm_fig, "svm_confusion_matrix.png", EDA_PLOTS_DIR)
+        if svm_importances is not None and svm_importances.any(): # svm_importances is permutation importance
+            svm_fi_fig = plot_feature_importances(svm_importances, final_feature_names_for_model, "SVM (Permutation)")
+            save_figure(svm_fi_fig, "svm_feature_importances.png", EDA_PLOTS_DIR)
 
-    # Model 3: Deep Neural Network (PyTorch)
-    print("\n-- Training DNN (PyTorch with Optuna) --")
-    if len(X_train) > 50 and len(np.unique(y_train)) > 1:
-        X_train_dnn, X_val_dnn, y_train_dnn, y_val_dnn = train_test_split(
-            X_train, y_train, test_size=0.2, random_state=RANDOM_STATE, stratify=y_train
+
+    print("\n-- Training PyTorch DNN --")
+    # Split training data further for DNN validation if needed (already done if test_size > 0 in main split)
+    # X_train already scaled. y_train is encoded.
+    # The train_pytorch_dnn function might do its own further split for optuna validation
+    input_dim_dnn = X_train.shape[1]
+    dnn_epochs = 50 # As per your current code, adjust if needed
+    dnn_optuna_trials = 15 # As per your current code
+
+    # Create a dedicated validation set for Optuna and early stopping from the training set
+    # Ensure X_train_dnn_main and X_val_dnn are numpy arrays for PyTorch function
+    if len(X_train) > 50 and len(np.unique(y_train)) > 1 :
+        # Stratify if possible
+        stratify_dnn_val = y_train if len(np.unique(y_train)) > 1 and len(np.unique(y_train)) < len(y_train) else None
+        X_train_dnn_main_df, X_val_dnn_df, y_train_dnn_main_series, y_val_dnn_series = train_test_split(
+            X_train, pd.Series(y_train, index=X_train.index), test_size=0.2, random_state=RANDOM_STATE, stratify=stratify_dnn_val
         )
-    else: 
-        X_train_dnn, y_train_dnn = X_train, y_train
-        X_val_dnn, y_val_dnn = X_test, y_test 
-        print("Warning: Using test set as validation for DNN due to small training/stratification constraints.")
+        X_train_dnn_main = X_train_dnn_main_df.values
+        y_train_dnn_main = y_train_dnn_main_series.values
+        X_val_dnn = X_val_dnn_df.values
+        y_val_dnn = y_val_dnn_series.values
+    else: # Fallback for very small datasets
+        print("Warning: Small training set, using full X_train for DNN training and X_test for DNN validation (less ideal).")
+        X_train_dnn_main = X_train.values
+        y_train_dnn_main = y_train
+        X_val_dnn = X_test.values # Using test set for validation here is not ideal but a fallback
+        y_val_dnn = y_test
 
-    input_dim_dnn = X_train_dnn.shape[1]
 
-    # Ensure data is numpy before passing to PyTorch function if it's pandas
-    if isinstance(X_train_dnn, pd.DataFrame): X_train_dnn_np = X_train_dnn.values
-    else: X_train_dnn_np = X_train_dnn
-    if isinstance(y_train_dnn, pd.Series): y_train_dnn_np = y_train_dnn.values
-    else: y_train_dnn_np = y_train_dnn
-    if isinstance(X_val_dnn, pd.DataFrame): X_val_dnn_np = X_val_dnn.values
-    else: X_val_dnn_np = X_val_dnn
-    if isinstance(y_val_dnn, pd.Series): y_val_dnn_np = y_val_dnn.values
-    else: y_val_dnn_np = y_val_dnn
-
-    dnn_model_pytorch = train_pytorch_dnn(
-        X_train_dnn_np, y_train_dnn_np, X_val_dnn_np, y_val_dnn_np,
-        input_dim=input_dim_dnn, 
-        num_classes=num_classes,
-        epochs=30, # Epochs for Optuna trials and final training phase
-        n_optuna_trials=15, # Number of Optuna trials (adjust based on time)
-        project_name=f'{TARGET_COLUMN.lower().replace(" ", "_").replace("-","_")}_pytorch_dnn_tuning'
+    dnn_model_pytorch_trained, dnn_best_params = train_pytorch_dnn( # Modified to return best_params too
+        X_train_dnn_main, y_train_dnn_main, X_val_dnn, y_val_dnn,
+        input_dim=input_dim_dnn,
+        num_classes=num_classes, # ensure num_classes is correctly defined
+        epochs=dnn_epochs,
+        n_optuna_trials=dnn_optuna_trials,
+        model_filename="pytorch_dnn_model.pth", # Saved in "models/" by train_pytorch_dnn
+        model_save_dir=MODELS_DIR # Pass the correct save dir
     )
 
-    if dnn_model_pytorch:
-        dnn_model_pytorch.eval() # Set model to evaluation mode
+    if dnn_model_pytorch_trained:
+        trained_models['PyTorch DNN'] = dnn_model_pytorch_trained # Store for SHAP
+        # Save DNN config
+        actual_hidden_configs = []
+        actual_dropout_configs = []
+        if not dnn_best_params:
+            num_actual_layers = 2
+            actual_hidden_configs = [128, 64]
+            actual_dropout_configs = [0.3, 0.2]
+            if not dnn_best_params: dnn_best_params = {} 
+        else:
+            num_actual_layers = dnn_best_params.get('n_layers', 2)
+            for i in range(num_actual_layers):
+                actual_hidden_configs.append(dnn_best_params.get(f'n_units_l{i}', 64))
+            for i in range(num_actual_layers):
+                actual_dropout_configs.append(dnn_best_params.get(f'dropout_l{i}', 0.2))
+        
+
+        dnn_config = {
+            'input_dim': input_dim_dnn,
+            'num_classes': num_classes,
+            'hidden_layers_config': actual_hidden_configs,
+            'dropout_rates': actual_dropout_configs,
+            'model_filename': "pytorch_dnn_model.pth",
+            'lr': dnn_best_params.get('lr'),
+            'optimizer': dnn_best_params.get('optimizer'),
+            'batch_size': dnn_best_params.get('batch_size')
+        }
+        with open(os.path.join(MODELS_DIR, "pytorch_dnn_model_config.json"), 'w') as f:
+            json.dump(dnn_config, f, indent=4)
+        print(f"PyTorch DNN config saved to {os.path.join(MODELS_DIR, 'pytorch_dnn_model_config.json')}")
+
+        dnn_model_pytorch_trained.eval()
         with torch.no_grad():
+            # Ensure X_test is a tensor for PyTorch
             X_test_tensor = torch.tensor(X_test.values if isinstance(X_test, pd.DataFrame) else X_test, dtype=torch.float32).to(DEVICE)
-            outputs_test = dnn_model_pytorch(X_test_tensor)
-            
-            if num_classes == 2:
-                # BCEWithLogitsLoss means raw logits, apply sigmoid for probabilities/predictions
-                y_pred_proba_dnn_raw = torch.sigmoid(outputs_test).cpu().numpy().flatten()
-                y_pred_dnn = (y_pred_proba_dnn_raw > 0.5).astype(int)
-                models_predictions['DNN (PyTorch)'] = y_pred_proba_dnn_raw # Probabilities for positive class
-            else:
-                # CrossEntropyLoss means raw logits, apply softmax for probabilities
-                y_pred_proba_dnn_raw = torch.softmax(outputs_test, dim=1).cpu().numpy()
-                y_pred_dnn = np.argmax(y_pred_proba_dnn_raw, axis=1)
-                models_predictions['DNN (PyTorch)'] = y_pred_proba_dnn_raw # All class probabilities
-            
-        print("\nDNN (PyTorch) - Test Set Evaluation:")
-        print(classification_report(y_test, y_pred_dnn, target_names=class_names, zero_division=0))
-        dnn_cm_fig = plot_confusion_matrix_heatmap(y_test, y_pred_dnn, class_names, "DNN (PyTorch)")
-        save_figure(dnn_cm_fig, "dnn_pytorch_confusion_matrix")
-        print("DNN Feature importances (e.g., SHAP, Captum) are typically more complex for PyTorch and not plotted by default.")
+            outputs_test_dnn = dnn_model_pytorch_trained(X_test_tensor)
+
+            if num_classes == 2: # Binary
+                # BCEWithLogitsLoss means raw logits, apply sigmoid
+                y_pred_proba_dnn_raw = torch.sigmoid(outputs_test_dnn).cpu().numpy()
+                # Ensure it's 2D [:, 1] for consistency if it's (n_samples, 1)
+                # If it's already (n_samples,) then it's prob of positive class
+                if y_pred_proba_dnn_raw.ndim == 2 and y_pred_proba_dnn_raw.shape[1] == 1:
+                    y_pred_proba_dnn = np.hstack((1 - y_pred_proba_dnn_raw, y_pred_proba_dnn_raw))
+                elif y_pred_proba_dnn_raw.ndim == 1: # Assumed to be prob of positive class
+                     y_pred_proba_dnn = np.vstack((1 - y_pred_proba_dnn_raw, y_pred_proba_dnn_raw)).T
+                else: # Should not happen
+                    print(f"Unexpected DNN output shape: {y_pred_proba_dnn_raw.shape}")
+                    y_pred_proba_dnn = y_pred_proba_dnn_raw # Fallback
+
+                y_pred_dnn = (y_pred_proba_dnn[:, 1] > 0.5).astype(int)
+            else: # Multi-class
+                y_pred_proba_dnn = torch.softmax(outputs_test_dnn, dim=1).cpu().numpy()
+                y_pred_dnn = np.argmax(y_pred_proba_dnn, axis=1)
+
+            models_predictions_proba['PyTorch DNN'] = y_pred_proba_dnn
+            print("\nPyTorch DNN - Test Set Evaluation:")
+            print(classification_report(y_test, y_pred_dnn, target_names=class_names_from_encoder, zero_division=0))
+            dnn_cm_fig = plot_confusion_matrix_heatmap(y_test, y_pred_dnn, class_names_from_encoder, "PyTorch DNN")
+            save_figure(dnn_cm_fig, "dnn_pytorch_confusion_matrix.png", EDA_PLOTS_DIR)
+    else:
+        print("PyTorch DNN training failed or was skipped.")
 
 
-    # Model 4: XGBoost (New)
     print("\n-- Training XGBoost --")
     xgb_model, xgb_importances = train_xgboost(
-        X_train.copy(), y_train.copy(), num_classes=num_classes, feature_names=feature_names,
-        random_state=RANDOM_STATE
+        X_train.copy(), y_train.copy(), num_classes=num_classes, feature_names=final_feature_names_for_model,
+        random_state=RANDOM_STATE,
+        model_filename="xgboost_model.joblib", # CHANGED to .joblib
+        model_save_dir=MODELS_DIR, # Pass the main models directory
+        plot_save_dir=MODEL_SPECIFIC_PLOTS_DIR
     )
     if xgb_model:
+        trained_models['XGBoost'] = xgb_model
         y_pred_xgb = xgb_model.predict(X_test)
         y_pred_proba_xgb = xgb_model.predict_proba(X_test)
-        models_predictions['XGBoost'] = y_pred_proba_xgb # Add to combined plots
-        
+        models_predictions_proba['XGBoost'] = y_pred_proba_xgb
         print("\nXGBoost - Test Set Evaluation:")
-        print(classification_report(y_test, y_pred_xgb, target_names=class_names, zero_division=0))
+        print(classification_report(y_test, y_pred_xgb, target_names=class_names_from_encoder, zero_division=0))
         
-        xgb_cm_fig = plot_confusion_matrix_heatmap(y_test, y_pred_xgb, class_names, "XGBoost")
-        save_figure(xgb_cm_fig, "xgb_confusion_matrix")
+        xgb_cm_fig = plot_confusion_matrix_heatmap(y_test, y_pred_xgb, class_names_from_encoder, "XGBoost")
+        save_figure(xgb_cm_fig, "xgb_confusion_matrix.png", EDA_PLOTS_DIR)
         
         if xgb_importances is not None and xgb_importances.any():
-            xgb_fi_fig = plot_feature_importances(xgb_importances, feature_names, "XGBoost")
-            save_figure(xgb_fi_fig, "xgb_feature_importances")
+            xgb_fi_fig = plot_feature_importances(xgb_importances, final_feature_names_for_model, "XGBoost")
+            save_figure(xgb_fi_fig, "xgb_feature_importances.png", EDA_PLOTS_DIR)
 
-    if models_predictions:
+# --- 4. Combined ROC and PR Curves ---
+    if models_predictions_proba:
         print("\n--- Plotting Combined ROC and Precision-Recall Curves ---")
-        roc_fig = plot_roc_curves(y_test, models_predictions, class_names, num_classes)
-        save_figure(roc_fig, "combined_roc_curves")
-        
-        pr_fig = plot_precision_recall_curves(y_test, models_predictions, class_names, num_classes)
-        save_figure(pr_fig, "combined_precision_recall_curves")
-            
-    print("\n--- Training and Evaluation Pipeline Complete ---")
+        # Ensure y_test is 1D array for roc/pr curve functions
+        y_test_for_curves = np.array(y_test).ravel()
 
-# --- Prepare background data for SHAP DeepExplainer (sample from X_train) ---
-    X_train_background_sample_df = None
-    if isinstance(X_train, pd.DataFrame) and not X_train.empty:
-        num_background_samples = min(100, len(X_train)) # Use up to 100 samples from training set for background
-        X_train_background_sample_df = X_train.sample(num_background_samples, random_state=RANDOM_STATE)
-    elif isinstance(X_train, np.ndarray) and X_train.shape[0] > 0 : # If X_train is numpy
-        num_background_samples = min(100, X_train.shape[0])
-        indices = np.random.choice(X_train.shape[0], num_background_samples, replace=False)
-        X_train_background_sample_df = pd.DataFrame(X_train[indices], columns=feature_names)
+        roc_fig = plot_roc_curves(y_test_for_curves, models_predictions_proba, class_names_from_encoder, num_classes)
+        save_figure(roc_fig, "combined_roc_curves.png", EDA_PLOTS_DIR)
 
+        pr_fig = plot_precision_recall_curves(y_test_for_curves, models_predictions_proba, class_names_from_encoder, num_classes)
+        save_figure(pr_fig, "combined_precision_recall_curves.png", EDA_PLOTS_DIR)
 
-    # --- 5. SHAP Value Analysis (after all models are trained) ---
+    # # --- 5. SHAP Value Analysis (after all models are trained) ---
     print("\n--- Stage 5: SHAP Value Analysis ---")
     
     if X_test.empty:
         print("X_test is empty, skipping SHAP plot generation.")
     else:
-        sample_size_shap = min(100, len(X_test)) 
+        sample_size_shap = min(100, len(X_test))
         if sample_size_shap > 0:
-            if not isinstance(X_test, pd.DataFrame): 
-                 X_test_df_for_shap_call = pd.DataFrame(X_test, columns=feature_names)
-            else:
-                 X_test_df_for_shap_call = X_test
-            X_test_sample_shap = X_test_df_for_shap_call.sample(sample_size_shap, random_state=RANDOM_STATE)
+            # X_test is already a DataFrame with final_feature_names_for_model
+            X_test_sample_shap = X_test.sample(n=sample_size_shap, random_state=RANDOM_STATE)
 
-            # Pass X_train_background_sample_df to relevant explainers
-            if 'rf_model' in locals() and rf_model:
-                generate_and_save_shap_plots(rf_model, X_test_sample_shap, feature_names, 
-                                             "Random Forest", num_classes, class_names_list=class_names,
-                                             X_background_df_orig=X_train_background_sample_df) # TreeExplainer can also use background
-            if 'xgb_model' in locals() and xgb_model:
-                generate_and_save_shap_plots(xgb_model, X_test_sample_shap, feature_names, 
-                                             "XGBoost", num_classes, class_names_list=class_names,
-                                             X_background_df_orig=X_train_background_sample_df)
-            if 'svm_model' in locals() and svm_model:
-                print("\nNote: SHAP for SVM (KernelExplainer) can be very slow.")
-                generate_and_save_shap_plots(svm_model, X_test_sample_shap, feature_names, 
-                                             "SVM", num_classes, class_names_list=class_names,
-                                             X_background_df_orig=X_train_background_sample_df) # Pass background for KernelExplainer
-
-            if 'dnn_model_pytorch' in locals() and dnn_model_pytorch:
-                print(f"\nAttempting SHAP for PyTorch DNN (using device: {DEVICE})...") # DEVICE is from train_dnn_model.py
-                if X_train_background_sample_df is not None:
+            for model_key_name, model_instance in trained_models.items():
+                if model_instance:
+                    # Map display name to a filename-safe version
+                    model_filename_key = model_key_name.lower().replace(' ', '_').replace('(', '').replace(')', '').replace('.', '')
+                    print(f"\nGenerating SHAP plots for {model_key_name} (filename key: {model_filename_key})...")
                     generate_and_save_shap_plots(
-                        dnn_model_pytorch, 
-                        X_test_sample_shap, 
-                        feature_names, 
-                        "PyTorch DNN", 
-                        num_classes, 
-                        class_names_list=class_names,
-                        X_background_df_orig=X_train_background_sample_df, # Pass training sample as background
-                        device_for_dnn=DEVICE # Pass the torch device
+                        model_instance,
+                        X_test_sample_shap, # This is the scaled data
+                        final_feature_names_for_model,
+                        model_filename_key, # Use this for filename consistency
+                        num_classes_model=num_classes,
+                        class_names_list=class_names_from_encoder,
+                        plot_dir=SHAP_PLOTS_DIR
                     )
-                else:
-                    print("Skipping PyTorch DNN SHAP: No background data (from X_train) available.")
         else:
             print("Not enough samples in X_test for SHAP analysis.")
 
-    # --- Stage 4: Saving All Assets ---
-    print("\n--- Stage 4: Saving Models and Preprocessing Assets ---")
-    assets_dir = "trained_models"
-    if not os.path.exists(assets_dir):
-        os.makedirs(assets_dir)
-
-    # 1. Save the scaler
-    if 'scaler' in locals() and scaler:
-        scaler_path = os.path.join(assets_dir, "scaler.joblib")
-        joblib.dump(scaler, scaler_path)
-        print(f"Scaler saved to {scaler_path}")
-    else:
-        print("Error: Scaler not found in pipeline locals. Cannot save.")
-
-    # 2. Save the final feature names
-    if 'feature_names' in locals() and feature_names:
-        feature_names_path = os.path.join(assets_dir, "final_feature_names.json")
-        with open(feature_names_path, 'w') as f:
-            json.dump(feature_names, f)
-        print(f"Final feature names saved to {feature_names_path}")
-    else:
-        print("Error: Final feature names not found in pipeline locals. Cannot save.")
-
-    # 3. Save Label Encoder related mappings (or rely on CLASS_NAMES from data_handler)
-    # CLASS_NAMES, LABEL_TO_INT_MAPPING, INT_TO_LABEL_MAPPING are usually sufficient if defined consistently.
-    # If label_encoder object itself is needed (e.g. for inverse_transforming unseen labels, though unlikely for prediction GUI):
-    if 'label_encoder' in locals() and label_encoder:
-        label_encoder_path = os.path.join(assets_dir, "label_encoder.joblib")
-        joblib.dump(label_encoder, label_encoder_path)
-        print(f"Label encoder saved to {label_encoder_path}")
-
-    # 4. Models (assuming individual train_*.py scripts save them, or save them here)
-    # Ensure models are saved with standard names in 'trained_models/'
-    # Example for models if not saved within their train functions:
-    if 'rf_model' in locals() and rf_model:
-        joblib.dump(rf_model, os.path.join(assets_dir, "rf_model.joblib"))
-        print("Random Forest model explicitly saved by pipeline.")
-    if 'svm_model' in locals() and svm_model:
-        joblib.dump(svm_model, os.path.join(assets_dir, "svm_model.joblib"))
-        print("SVM model explicitly saved by pipeline.")
-    if 'xgb_model' in locals() and xgb_model:
-        joblib.dump(xgb_model, os.path.join(assets_dir, "xgb_model.joblib"))
-        print("XGBoost model explicitly saved by pipeline.")
-    # PyTorch DNN model is saved within train_pytorch_dnn function.
-
-    # SHAP plots and other EDA plots are already saved by their respective functions.
-    # Ensure output_plots directory structure is as GUI expects for model_insights.
-
-    print("\n--- All essential assets for GUI should now be saved in 'trained_models/' ---")
-    print("--- EDA and model-specific plots should be in 'output_plots/' ---")
+    print("\n--- Training and Evaluation Pipeline Complete ---")
 
 
 if __name__ == '__main__':

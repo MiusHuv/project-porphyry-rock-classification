@@ -2,7 +2,7 @@
 streamlit
 pandas
 scikit-learn 
-joblib # Add this line
+joblib
 xgboost
 matplotlib
 seaborn

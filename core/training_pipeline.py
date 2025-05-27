@@ -24,10 +24,14 @@ from core.train_tree_model import train_random_forest
 from core.train_svm_model import train_svm
 from core.train_dnn_model import train_pytorch_dnn, SimpleDNN, DEVICE # Import SimpleDNN and DEVICE for prediction
 from core.train_xgboost_model import train_xgboost
+from core.data_handler import CLASS_NAMES, LABEL_TO_INT_MAPPING, INT_TO_LABEL_MAPPING
 import torch # Add torch import
 
 from skbio.stats.composition import clr 
 from sklearn.preprocessing import StandardScaler
+
+import joblib
+import json
 
 OUTPUT_PLOT_DIR = "output_plots"
 if not os.path.exists(OUTPUT_PLOT_DIR):
@@ -107,6 +111,8 @@ def run_training_pipeline():
     # --- Configuration ---
     TARGET_COLUMN = "Label"  # Updated based on image
     DATA_FILE_PATH = "data/2025-Project-Data(ESM Table 1).csv"
+
+
     
     # Define all expected columns based on the image for dummy data generation and EDA
     # (Order might not be identical to image but names should match)
@@ -334,54 +340,115 @@ def run_training_pipeline():
             
     print("\n--- Training and Evaluation Pipeline Complete ---")
 
-    # --- 5. SHAP Value Analysis (after all models are trained) ---
-    # X_test is already a DataFrame from data_handler, with final_feature_names
-    # X_test was scaled. SHAP explainers generally prefer unscaled or appropriately scaled data
-    # depending on the model. For Tree models, original scale is often fine.
-    # For KernelExplainer, the scale should match what the model.predict_proba expects.
-    # Let's use X_test (scaled) for now, as models were trained on scaled data.
-    # If TreeExplainer has issues with scaled data, one might consider using X_test before scaling,
-    # but then the SHAP values are on a different scale than model coefficients/splits.
-    # For consistency, using the data the model saw (X_test, which is scaled).
+# --- Prepare background data for SHAP DeepExplainer (sample from X_train) ---
+    X_train_background_sample_df = None
+    if isinstance(X_train, pd.DataFrame) and not X_train.empty:
+        num_background_samples = min(100, len(X_train)) # Use up to 100 samples from training set for background
+        X_train_background_sample_df = X_train.sample(num_background_samples, random_state=RANDOM_STATE)
+    elif isinstance(X_train, np.ndarray) and X_train.shape[0] > 0 : # If X_train is numpy
+        num_background_samples = min(100, X_train.shape[0])
+        indices = np.random.choice(X_train.shape[0], num_background_samples, replace=False)
+        X_train_background_sample_df = pd.DataFrame(X_train[indices], columns=feature_names)
 
+
+    # --- 5. SHAP Value Analysis (after all models are trained) ---
+    print("\n--- Stage 5: SHAP Value Analysis ---")
+    
     if X_test.empty:
         print("X_test is empty, skipping SHAP plot generation.")
     else:
         sample_size_shap = min(100, len(X_test)) 
         if sample_size_shap > 0:
-            # Ensure X_test_sample_shap is a DataFrame with correct feature names
-            # X_test should already be a DataFrame with `final_feature_names`
-            if not isinstance(X_test, pd.DataFrame): # Should not happen if data_handler is correct
+            if not isinstance(X_test, pd.DataFrame): 
                  X_test_df_for_shap_call = pd.DataFrame(X_test, columns=feature_names)
             else:
                  X_test_df_for_shap_call = X_test
-
             X_test_sample_shap = X_test_df_for_shap_call.sample(sample_size_shap, random_state=RANDOM_STATE)
 
+            # Pass X_train_background_sample_df to relevant explainers
             if 'rf_model' in locals() and rf_model:
                 generate_and_save_shap_plots(rf_model, X_test_sample_shap, feature_names, 
-                                             "Random Forest", num_classes, class_names_list=class_names)
+                                             "Random Forest", num_classes, class_names_list=class_names,
+                                             X_background_df_orig=X_train_background_sample_df) # TreeExplainer can also use background
             if 'xgb_model' in locals() and xgb_model:
                 generate_and_save_shap_plots(xgb_model, X_test_sample_shap, feature_names, 
-                                             "XGBoost", num_classes, class_names_list=class_names)
-            
-            # SHAP for SVM (KernelExplainer)
+                                             "XGBoost", num_classes, class_names_list=class_names,
+                                             X_background_df_orig=X_train_background_sample_df)
             if 'svm_model' in locals() and svm_model:
-                print("\nNote: SHAP for SVM (KernelExplainer) can be very slow and is run on a potentially smaller sample.")
-                # KernelExplainer can be sensitive to the number of features. 
-                # If >20-30 features, it becomes extremely slow.
-                # X_test_sample_svm_shap = X_test_sample_shap[final_feature_names[:20]] if len(final_feature_names) > 20 else X_test_sample_shap
+                print("\nNote: SHAP for SVM (KernelExplainer) can be very slow.")
                 generate_and_save_shap_plots(svm_model, X_test_sample_shap, feature_names, 
-                                             "SVM", num_classes, class_names_list=class_names)
+                                             "SVM", num_classes, class_names_list=class_names,
+                                             X_background_df_orig=X_train_background_sample_df) # Pass background for KernelExplainer
 
-            # SHAP for PyTorch DNNs (more complex, requires specific SHAP explainers like DeepExplainer or GradientExplainer)
             if 'dnn_model_pytorch' in locals() and dnn_model_pytorch:
-                print("\nSkipping SHAP for PyTorch DNN in this iteration (requires specific SHAP explainers like DeepExplainer/GradientExplainer and careful handling of tensor inputs).")
-                # Placeholder for future PyTorch SHAP integration:
-                # from core.shap_pytorch_explainer import generate_pytorch_shap_plots # You would create this utility
-                # generate_pytorch_shap_plots(dnn_model_pytorch, X_test_sample_shap, final_feature_names, "PyTorch DNN", num_classes, class_names)
+                print(f"\nAttempting SHAP for PyTorch DNN (using device: {DEVICE})...") # DEVICE is from train_dnn_model.py
+                if X_train_background_sample_df is not None:
+                    generate_and_save_shap_plots(
+                        dnn_model_pytorch, 
+                        X_test_sample_shap, 
+                        feature_names, 
+                        "PyTorch DNN", 
+                        num_classes, 
+                        class_names_list=class_names,
+                        X_background_df_orig=X_train_background_sample_df, # Pass training sample as background
+                        device_for_dnn=DEVICE # Pass the torch device
+                    )
+                else:
+                    print("Skipping PyTorch DNN SHAP: No background data (from X_train) available.")
         else:
             print("Not enough samples in X_test for SHAP analysis.")
+
+    # --- Stage 4: Saving All Assets ---
+    print("\n--- Stage 4: Saving Models and Preprocessing Assets ---")
+    assets_dir = "trained_models"
+    if not os.path.exists(assets_dir):
+        os.makedirs(assets_dir)
+
+    # 1. Save the scaler
+    if 'scaler' in locals() and scaler:
+        scaler_path = os.path.join(assets_dir, "scaler.joblib")
+        joblib.dump(scaler, scaler_path)
+        print(f"Scaler saved to {scaler_path}")
+    else:
+        print("Error: Scaler not found in pipeline locals. Cannot save.")
+
+    # 2. Save the final feature names
+    if 'feature_names' in locals() and feature_names:
+        feature_names_path = os.path.join(assets_dir, "final_feature_names.json")
+        with open(feature_names_path, 'w') as f:
+            json.dump(feature_names, f)
+        print(f"Final feature names saved to {feature_names_path}")
+    else:
+        print("Error: Final feature names not found in pipeline locals. Cannot save.")
+
+    # 3. Save Label Encoder related mappings (or rely on CLASS_NAMES from data_handler)
+    # CLASS_NAMES, LABEL_TO_INT_MAPPING, INT_TO_LABEL_MAPPING are usually sufficient if defined consistently.
+    # If label_encoder object itself is needed (e.g. for inverse_transforming unseen labels, though unlikely for prediction GUI):
+    if 'label_encoder' in locals() and label_encoder:
+        label_encoder_path = os.path.join(assets_dir, "label_encoder.joblib")
+        joblib.dump(label_encoder, label_encoder_path)
+        print(f"Label encoder saved to {label_encoder_path}")
+
+    # 4. Models (assuming individual train_*.py scripts save them, or save them here)
+    # Ensure models are saved with standard names in 'trained_models/'
+    # Example for models if not saved within their train functions:
+    if 'rf_model' in locals() and rf_model:
+        joblib.dump(rf_model, os.path.join(assets_dir, "rf_model.joblib"))
+        print("Random Forest model explicitly saved by pipeline.")
+    if 'svm_model' in locals() and svm_model:
+        joblib.dump(svm_model, os.path.join(assets_dir, "svm_model.joblib"))
+        print("SVM model explicitly saved by pipeline.")
+    if 'xgb_model' in locals() and xgb_model:
+        joblib.dump(xgb_model, os.path.join(assets_dir, "xgb_model.joblib"))
+        print("XGBoost model explicitly saved by pipeline.")
+    # PyTorch DNN model is saved within train_pytorch_dnn function.
+
+    # SHAP plots and other EDA plots are already saved by their respective functions.
+    # Ensure output_plots directory structure is as GUI expects for model_insights.
+
+    print("\n--- All essential assets for GUI should now be saved in 'trained_models/' ---")
+    print("--- EDA and model-specific plots should be in 'output_plots/' ---")
+
 
 if __name__ == '__main__':
     print("Starting the Porphyry Rock Classification Training Pipeline...")

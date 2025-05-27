@@ -10,3 +10,4 @@ openpyxl
 Pillow 
 scikit-bio
 torch
+imblearn

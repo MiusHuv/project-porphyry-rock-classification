@@ -4,7 +4,7 @@
 
 ---
 
-# 智能地球化学岩石分类器 (Intelligent Geochemical Rock Classifier)
+# 斑岩矿床类型分类器 (Porphyry Rock Classifier)
 
 ## English
 
@@ -54,8 +54,6 @@ python core/training_pipeline.py
 * Saves essential preprocessing objects (scaler, label encoder classes, final feature names) to the `models/` directory.
 * Generates and saves EDA plots, model evaluation plots (confusion matrices, ROC/PR curves, feature importance plots) to the `assets/eda_plots/` directory.
 * Generates and saves SHAP analysis plots (summary and dependence plots) to the `assets/shap_plots/` directory.
-
-**Note**: If `data/2025-Project-Data(ESM Table 1).csv` is not found, the script will attempt to create a dummy dataset (`dummy_geochem_data.csv`) for demonstration, but the results will not be meaningful.
 
 ### Running the Streamlit GUI Application
 
@@ -128,8 +126,6 @@ python core/training_pipeline.py
 * 将必要的预处理对象（scaler、标签编码器的类别、最终特征名称）保存到 `models/` 目录下。
 * 生成并保存EDA图表、模型评估图表（混淆矩阵、ROC/PR曲线、特征重要性图）到 `assets/eda_plots/` 目录。
 * 生成并保存SHAP分析图表（摘要图和依赖图）到 `assets/shap_plots/` 目录。
-
-**注意**：如果未找到 `data/2025-Project-Data(ESM Table 1).csv` 文件，脚本将尝试创建一个虚拟数据集 (`dummy_geochem_data.csv`) 以供演示，但此时的结果将不具有实际意义。
 
 ### 运行Streamlit GUI应用
 

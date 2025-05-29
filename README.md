@@ -1,9 +1,5 @@
 # project-2025-porphyry-rock-classification
 
-好的，这是一份基于您项目内容和功能的中英文双语 `README.md` 文档。
-
----
-
 # 斑岩矿床类型分类器 (Porphyry Rock Classifier)
 
 ## English

@@ -1,7 +1,5 @@
 # project-2025-porphyry-rock-classification
 
-## English
-
 ### Project Description
 
 This project implements an intelligent system for classifying porphyry ore types (Copper-rich vs. Gold-rich) based on geochemical data. It utilizes various machine learning models (Random Forest, SVM, XGBoost, PyTorch DNN) and provides a Streamlit-based Graphical User Interface (GUI) for users to:
@@ -71,8 +69,6 @@ The application will open in your default web browser.
 * `.devcontainer/`: Configuration for development containers.
 
 ---
-
-## 中文
 
 ### 项目描述
 

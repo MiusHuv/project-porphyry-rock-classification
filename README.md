@@ -1,7 +1,5 @@
 # project-2025-porphyry-rock-classification
 
-# 斑岩矿床类型分类器 (Porphyry Rock Classifier)
-
 ## English
 
 ### Project Description

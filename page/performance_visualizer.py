@@ -91,6 +91,8 @@ def show_page():
     col2.metric(T("perf_viz_precision_label", class_name=CLASS_NAMES[1]), f"{precision_score(y_true_numeric, y_pred_numeric, pos_label=positive_label_numeric_value, zero_division=0):.3f}")
     col3.metric(T("perf_viz_recall_label", class_name=CLASS_NAMES[1]), f"{recall_score(y_true_numeric, y_pred_numeric, pos_label=positive_label_numeric_value, zero_division=0):.3f}")
     col4.metric(T("perf_viz_f1_label", class_name=CLASS_NAMES[1]), f"{f1_score(y_true_numeric, y_pred_numeric, pos_label=positive_label_numeric_value, zero_division=0):.3f}")
+    # note that set Cu-rich PCDs as positive class for metrics
+    st.markdown("<small>" + T("perf_viz_positive_class_note", default="*Note: Cu-rich PCDs are treated as the positive class for the purpose of these metrics.") + "</small>", unsafe_allow_html=True)
 
     # --- Display Visualizations ---
     st.subheader(T("perf_viz_visualizations_subheader"))
@@ -108,20 +110,7 @@ def show_page():
         if cm_fig: st.pyplot(cm_fig)
         st.caption(T("perf_viz_cm_caption", class_name_1=CLASS_NAMES[1], class_name_0=CLASS_NAMES[0]))
 
-    # For ROC and PR, ensure y_pred_proba_positive_class is suitable.
-    # plot_roc_curves and plot_precision_recall_curves from visualizer expect a dictionary of probas.
-    # Here we have probas for one model.
-    
-    # Convert y_pred_proba_positive_class to the format expected by plot_roc_curve_func/plot_precision_recall_curve_func
-    # They might expect probabilities for all classes, or just the positive class for binary.
-    # The versions in your visualizer.py (plot_roc_curves, plot_precision_recall_curves)
-    # take y_pred_probas_dict. We need to adapt or make specific functions.
-    
-    # Let's assume we adapt to single model prediction:
-    # Create a dummy y_pred_probas_dict for a single model
-    # If CLASS_NAMES[1] is positive, its probabilities are in y_pred_proba_positive_class
-    # Probabilities for CLASS_NAMES[0] would be 1 - y_pred_proba_positive_class
-    
+    # Prepare probabilities for ROC and Precision-Recall curves   
     num_samples = len(y_pred_proba_positive_class)
     y_probas_for_plot = np.zeros((num_samples, len(CLASS_NAMES)))
     y_probas_for_plot[:, label_to_int_mapping[CLASS_NAMES[1]]] = y_pred_proba_positive_class
@@ -140,6 +129,24 @@ def show_page():
         pr_fig = plot_precision_recall_curve_func(y_true_numeric, single_model_probas_dict, CLASS_NAMES, num_classes=len(CLASS_NAMES))
         if pr_fig: st.pyplot(pr_fig)
         st.caption(T("perf_viz_pr_caption"))
+
+        st.write("\n\n\n")
+    st.write("")
+    # st.write("")   
+
+    col1, col2 = st.columns(2)
+
+    # Store page keys directly for navigation, display names are handled by app.py
+    # The button labels themselves should be translated.
+    with col1:
+        if st.button(T("home_button_run_prediction"), use_container_width=True, help=T("home_help_run_prediction")):
+            st.session_state.selected_page_key = "Run Prediction"
+            st.rerun()
+
+    with col2:
+        if st.button(T("home_button_model_insights"), use_container_width=True, help=T("home_help_model_insights")):
+            st.session_state.selected_page_key = "Model Insights"
+            st.rerun()
 
 if __name__ == "__main__":
     if 'lang' not in st.session_state: st.session_state.lang = "en"

@@ -56,7 +56,7 @@ def plot_feature_importances(importances, feature_names, model_name, top_n=20):
     sns.barplot(x=sorted_importances.head(top_n).values, 
                 y=sorted_importances.head(top_n).index, 
                 hue=sorted_importances.head(top_n).index,
-                palette= "viridis", # Use a color palette for better visibility
+                palette= "crest", # Use a color palette for better visibility
                 orient='h',
                 legend=False,
                 ax=ax)
@@ -69,7 +69,7 @@ def plot_feature_importances(importances, feature_names, model_name, top_n=20):
 def plot_confusion_matrix_heatmap(y_true, y_pred, class_names_list, model_name):
     cm = confusion_matrix(y_true, y_pred)
     fig, ax = plt.subplots(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+    sns.heatmap(cm, annot=True, fmt='d', cmap='crest',
                 xticklabels=class_names_list, yticklabels=class_names_list, ax=ax)
     ax.set_xlabel("Predicted Label") # T("Predicted Label")
     ax.set_ylabel("True Label") # T("True Label")
@@ -240,7 +240,7 @@ def generate_and_save_shap_plots(model, X_sample_df_orig, feature_names_list, mo
         for i in range(len(shap_values_for_plotting)):
             plt.figure()
             class_label_safe = (class_names_list[i] if class_names_list and i < len(class_names_list) else f"Class_{i}").replace(' ', '_').lower()
-            shap.summary_plot(shap_values_for_plotting[i], X_sample_df_for_plot, feature_names=feature_names_list_str, show=False, plot_type="dot")
+            shap.summary_plot(shap_values_for_plotting[i], X_sample_df_for_plot, feature_names=feature_names_list_str, show=False, plot_type="dot",cmap=plt.get_cmap("crest"))
             plt.title(f"SHAP Summary for {class_label_safe} - {model_type_str}")
             save_path = plot_dir_path / f"{model_type_str}_shap_summary_{class_label_safe}.png" # Use Pathlib
             plt.savefig(save_path, bbox_inches='tight'); plt.close()
@@ -289,7 +289,7 @@ def generate_and_save_shap_plots(model, X_sample_df_orig, feature_names_list, mo
                     plt.figure()
                     class_label_safe = (class_names_list[i] if class_names_list and i < len(class_names_list) else f"Class_{i}").replace(' ', '_').lower()
                     try:
-                        shap.dependence_plot(feature_name_as_string, shap_values_for_plotting[i], X_sample_df_for_plot, show=False, interaction_index=None)
+                        shap.dependence_plot(feature_name_as_string, shap_values_for_plotting[i], X_sample_df_for_plot, show=False, interaction_index=None, cmap=plt.get_cmap("crest"))
                         plt.title(f"SHAP Dependence: {feature_name_as_string} ({class_label_safe}) - {model_type_str}")
                         save_path = plot_dir_path / f"{model_type_str}_shap_dependence_{feature_name_safe_filename}_{class_label_safe}.png"
                         plt.savefig(save_path, bbox_inches='tight'); plt.close()
@@ -298,7 +298,7 @@ def generate_and_save_shap_plots(model, X_sample_df_orig, feature_names_list, mo
             elif shap_values_for_plotting is not None and hasattr(shap_values_for_plotting, 'ndim') and shap_values_for_plotting.ndim == 2:
                 plt.figure()
                 try:
-                    shap.dependence_plot(feature_name_as_string, shap_values_for_plotting, X_sample_df_for_plot, show=False, interaction_index=None)
+                    shap.dependence_plot(feature_name_as_string, shap_values_for_plotting, X_sample_df_for_plot, show=False, interaction_index=None, cmap=plt.get_cmap("crest"))
                     plt.title(f"SHAP Dependence Plot: {feature_name_as_string} - {model_type_str}")
                     save_path = plot_dir_path / f"{model_type_str}_shap_dependence_{feature_name_safe_filename}.png"
                     plt.savefig(save_path, bbox_inches='tight'); plt.close()

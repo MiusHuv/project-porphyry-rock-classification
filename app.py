@@ -7,6 +7,8 @@ from util.language import T, TEXTS
 # -----------------------------------------------------------------------------
 # 1. INITIALIZE SESSION STATE FOR LANGUAGE
 # -----------------------------------------------------------------------------
+st.set_page_config(layout="wide")
+
 if "lang" not in st.session_state:
     st.session_state.lang = "en"  # Default language
 
@@ -93,16 +95,3 @@ selection_display = st.sidebar.selectbox(
 page_function_to_call = PAGES_CONFIG[st.session_state.selected_page_key]["func"]
 page_function_to_call()
 
-
-# Initialize other session state variables if needed
-# (Example from your original code, ensure they don't conflict or are managed appropriately)
-# if "raw_df" not in st.session_state:
-#     st.session_state.raw_df = None
-# if "predictions_df" not in st.session_state:
-#     st.session_state.predictions_df = None
-# if "selected_model_name" not in st.session_state:
-#     st.session_state.selected_model_name = None
-# if "true_label_column" not in st.session_state:
-#     st.session_state.true_label_column = None
-# if "show_performance" not in st.session_state:
-#     st.session_state.show_performance = False

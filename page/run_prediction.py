@@ -7,6 +7,7 @@ from core.data_handler import (
     MAJOR_OXIDES_WT_PERCENT, # Needed for preprocess_data_for_prediction
     TRACE_ELEMENTS_PPM       # Needed for preprocess_data_for_prediction
 )
+
 from core.model_loader import load_selected_model, load_gui_preprocessor_artifacts
 from core.predictor import make_predictions
 from util.language import T
@@ -239,6 +240,9 @@ def show_page():
                                 key="download_predictions_csv_run_pred_main"
                             )
                             st.success(T("run_pred_success_prediction_done"))
+
+                            # Optionally, redirect to performance visualizer if true label column was selected
+                            st.button(T("home_button_view_performance"), key="view_performance_button", on_click=lambda: st.session_state.update({"selected_page_key": "Performance Visualizer"}))
                         else:
                             st.error(T("run_pred_error_prediction_failed_internal"))
                     except RuntimeError as e: # Catch errors from make_predictions

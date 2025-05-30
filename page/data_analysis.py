@@ -32,7 +32,7 @@ def show_page():
     Shows pairwise relationships for a selection of 10 key elements. 
     Diagonal plots show the distribution of each element.
     """))
-    display_eda_image("scatter_matrix.png", "data_analysis_scatter_matrix_caption", "Pair-wise scatter matrix of 10 key elements.")
+    display_eda_image("eda_pair_scatter_matrix_after_transforms.png.png", "data_analysis_scatter_matrix_caption", "Pair-wise scatter matrix of 10 key elements.")
 
     st.markdown("---")
 
@@ -42,7 +42,7 @@ def show_page():
     Visualizes the Pearson or Spearman correlation coefficients between all elemental features. 
     Helps identify highly correlated variables.
     """))
-    display_eda_image("correlation_heatmap.png", "data_analysis_corr_heatmap_caption", "Correlation heatmap of elemental features.")
+    display_eda_image("eda_correlation_heatmap_after_transforms.png.png", "data_analysis_corr_heatmap_caption", "Correlation heatmap of elemental features.")
 
     st.markdown("---")
 

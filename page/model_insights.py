@@ -147,8 +147,7 @@ def show_page():
 
     if FINAL_FEATURE_NAMES_FROM_TRAINING and len(FINAL_FEATURE_NAMES_FROM_TRAINING) >= 1:
         features_for_dep_plots = top_shap_features_config.get(selected_model_name_insights, [])
-        # st.info(f"Features for dependence plots: {features_for_dep_plots}")
-        
+
         if not features_for_dep_plots:
             st.info(T("model_insights_shap_dependence_config_missing", model_name=selected_model_name_insights))
         else:
@@ -191,7 +190,20 @@ def show_page():
 
     st.markdown("---")
     st.subheader(T("model_insights_geological_meaning_header"))
-    st.markdown(T("model_insights_geological_meaning_desc")) # User to fill this
+    
+    # Dictionary to store model-specific geological interpretations
+    geological_interpretations = {
+        "Random Forest": T("model_insights_geological_meaning_rf"),
+        "XGBoost": T("model_insights_geological_meaning_xgb"),
+        "SVM": T("model_insights_geological_meaning_svm"),
+        "PyTorch DNN": T("model_insights_geological_meaning_dnn")
+    }
+    
+    # Display the geological interpretation for the selected model
+    if selected_model_name_insights in geological_interpretations:
+        st.markdown(geological_interpretations[selected_model_name_insights])
+    else:
+        st.markdown(T("model_insights_geological_meaning_default"))
 
 if __name__ == "__main__":
     if 'lang' not in st.session_state: st.session_state.lang = "en"

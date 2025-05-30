@@ -4,7 +4,7 @@ TEXTS = {
     "en": {
         # General App Texts
         "app_icon": "⛏️",
-        "app_title": "Geochemical Rock Classifier",
+        "app_title": "Geochemical Porphyry Rock Classifier",
         "main_menu_title": "Main Menu",
         "select_page_label": "Select Page",
         "language_label": "Language",
@@ -19,7 +19,7 @@ TEXTS = {
         
 
         # Home.py Texts
-        "home_title": "Geochemical Rock Classifier", # Can be same as app_title or more specific
+        "home_title": "Geochemical Porphyry Rock Classifier", # Can be same as app_title or more specific
         "home_subtitle": "Intelligently analyze geochemical data to accurately predict porphyry ore types.",
         "home_intro": """
             This tool utilizes advanced machine learning models, based on 36 major and trace element
@@ -47,9 +47,9 @@ TEXTS = {
         "home_app_overview_li2": "Interpret the key geochemical signatures controlling the classification.",
         "home_app_overview_li3": "Provide a user-friendly offline prediction tool.",
         "home_app_overview_p2": """
-            We utilize a dataset of 445 porphyry samples (298 Cu-rich, 147 Au-rich) with 36
-            geochemical elemental features (major elements in wt%, trace elements in ppm)
-            for model training and evaluation.
+            We utilized a dataset comprising 445 porphyry samples (298 copper-rich and 147 gold-rich) 
+            that were characterized by 36 geochemical elements (major elements in weight percent and 
+            trace elements in parts per million) for the purposes of model training and evaluation.
         """,
         "home_further_assistance_info": "For detailed usage instructions, feature definitions, model information, and technical details, please visit the **❓ Help / About** page.",
         "home_image_caption": "Porphyry Deposit Illustration",
@@ -158,6 +158,7 @@ TEXTS = {
         "perf_viz_precision_label": "Precision ({class_name})",
         "perf_viz_recall_label": "Recall ({class_name})",
         "perf_viz_f1_label": "F1-Score ({class_name})",
+        "perf_viz_positive_class_note": "*Note: Cu-rich PCDs are treated as the positive class for the purpose of these metrics.",
         "perf_viz_visualizations_subheader": "Visualizations",
         "perf_viz_cm_tab": "Confusion Matrix",
         "perf_viz_roc_tab": "ROC Curve",
@@ -219,16 +220,135 @@ TEXTS = {
         "model_insights_shap_dependence_caption": "SHAP Dependence Plot for {feature_name} ({model_name}, from training).",
         "model_insights_shap_dependence_config_missing": "Configuration for SHAP dependence plots not available for {model_name}.",
         "model_insights_geological_meaning_header": "Geological Meaning of Influential Variables (Discussion)",
-        "model_insights_geological_meaning_desc": """
-        *(This section should be filled with your discussion of the 5-10 most influential variables
-        and their geological meaning, based on your project's interpretability analysis.)*
+        "model_insights_geological_meaning_rf": """
+        The Random Forest model, through its feature importance bar plot and SHAP summary plot, reveals key geochemical variables influencing its predictions.
 
-        For example:
-        * **SiO₂ (Silica):** Higher silica content often correlates with more felsic magmas, which can be associated with certain types of porphyry deposits...
-        * **Cu/Au Ratio (if engineered):** This directly informs the classification...
-        * **K₂O/Na₂O:** Indicates alkalinity, which plays a role in magma evolution and mineralization...
-        * **Sr/Y Ratio:** Can be an indicator of slab melt involvement or crustal thickness...
+        * **Key Influential Variables:**
+
+        1.  **$Nb\_clr$ (Niobium)**:
+            * **Observations from plots**: Ranked first in feature importance. The SHAP plot shows that high $Nb\_clr$ values (red dots) tend to produce positive SHAP values (pushing the model output higher).
+            * **Geological Meaning**: Niobium (Nb) is a High Field Strength Element (HFSE) that typically enriches in highly evolved magmas such as alkaline rocks, carbonatites, and rare-metal granites. Its concentration can indicate the degree of magmatic differentiation, source characteristics (e.g., influence of subduction zone fluids), or specific mineralization (e.g., columbite-tantalite).
+
+        2.  **$TiO_2\_ppm\_clr$ (Titanium Dioxide)**:
+            * **Observations from plots**: Ranked second in feature importance. The SHAP plot shows that high $TiO_2\_ppm\_clr$ values tend to push the model output higher.
+            * **Geological Meaning**: Titanium dioxide ($TiO_2$) is a common component in various igneous rocks. Variations in its content can reflect magma type (basic magmas are generally richer in $TiO_2$ than acidic ones), degree of differentiation, and redox state. It can serve as an indicator for distinguishing different rock types or evolutionary stages.
+
+        3.  **$SiO_2\_ppm\_clr$ (Silicon Dioxide)**:
+            * **Observations from plots**: Ranked third in feature importance. The SHAP plot shows that high $SiO_2\_ppm\_clr$ values tend to push the model output higher.
+            * **Geological Meaning**: Silicon dioxide ($SiO_2$) is the most fundamental chemical criterion for classifying igneous rocks, determining their acidity/basicity (e.g., acidic, intermediate, basic, ultrabasic). The importance of this variable suggests the model is likely distinguishing major rock categories with significant differences in $SiO_2$ content.
+
+        4.  **$Er\_clr$ (Erbium)**:
+            * **Observations from plots**: Ranked high in feature importance. Erbium is a heavy rare earth element.
+            * **Geological Meaning**: Erbium (Er) is a Heavy Rare Earth Element (HREE). The abundance and distribution patterns of REEs (especially the enrichment or depletion of HREEs relative to LREEs) are crucial for determining magma source (e.g., presence of garnet residue), fractional crystallization processes, and certain types of mineralization (e.g., ion-adsorption REE deposits).
+
+        5.  **$Al_2O_3\_ppm\_clr$ (Aluminum Oxide)**:
+            * **Observations from plots**: Ranked high in feature importance. In the SHAP plot, high values tend to push model output higher.
+            * **Geological Meaning**: Aluminum oxide ($Al_2O_3$) is a major component of the Earth's crust and a constituent of major rock-forming minerals like feldspars and micas. Its content reflects the abundance of felsic minerals and is related to alumina saturation, which can be used to distinguish different genetic types of granites (e.g., S-type, I-type, A-type).
+
+        6.  **$Ta\_clr$ (Tantalum)**:
+            * **Observations from plots**: Quite important in the SHAP plot, where high values tend to push model output higher.
+            * **Geological Meaning**: Tantalum (Ta) behaves very similarly to Niobium (Nb) geochemically, and they often occur together. Ta is also an HFSE, enriched in highly evolved magmatic systems, and is an important indicator for rare-metal mineralization (e.g., tantalite).
+
         """,
+        "model_insights_geological_meaning_xgb": """
+        The XGBoost model also highlights variables that significantly contribute to its predictions via its feature importance plot and SHAP summary plot.
+
+        * **Key Influential Variables:**
+
+        1.  **$Yb\_clr$ (Ytterbium)**:
+            * **Observations from plots**: Ranked first in feature importance. In the SHAP plot, high values tend to push the model output higher.
+            * **Geological Meaning**: Ytterbium (Yb) is a Heavy Rare Earth Element (HREE). The enrichment or depletion of HREEs, especially their ratios relative to Light Rare Earth Elements (LREEs) (e.g., La/Yb), is critical for determining magma source depth (e.g., garnet stability field), degree of melting, and fractional crystallization processes (e.g., control by amphibole).
+
+        2.  **$Nb\_clr$ (Niobium)**:
+            * **Observations from plots**: Ranked second in feature importance. In the SHAP plot, high values tend to push the model output higher.
+            * **Geological Meaning**: (Same as Nb geological meaning above)
+
+        3.  **$Er\_clr$ (Erbium)**:
+            * **Observations from plots**: Ranked high in feature importance.
+            * **Geological Meaning**: (Same as Er geological meaning above) As an HREE, Er's behavior helps unravel magmatic processes.
+
+        4.  **$La\_clr$ (Lanthanum)**:
+            * **Observations from plots**: Ranked high in feature importance.
+            * **Geological Meaning**: Lanthanum (La) is a Light Rare Earth Element (LREE). The relative abundances of LREEs to HREEs (e.g., La/Yb ratio) are important parameters in petrogenetic studies, reflecting source characteristics (e.g., enriched mantle vs. depleted mantle) and evolutionary processes.
+
+        5.  **$SiO_2\_ppm\_clr$ (Silicon Dioxide)**:
+            * **Observations from plots**: Ranked high in feature importance.
+            * **Geological Meaning**: (Same as $SiO_2$ geological meaning above)
+
+        6.  **$TiO_2\_ppm\_clr$ (Titanium Dioxide)**:
+            * **Observations from plots**: Ranked high in feature importance. In the SHAP plot, high values tend to push the model output higher.
+            * **Geological Meaning**: (Same as $TiO_2$ geological meaning above)
+
+        7.  **$MgO\_ppm\_clr$ (Magnesium Oxide)**:
+            * **Observations from plots**: Quite important in the SHAP plot, where high values tend to push model output higher.
+            * **Geological Meaning**: (Same as $MgO$ geological meaning above)
+
+        8.  **$Ta\_clr$ (Tantalum)**:
+            * **Observations from plots**: Quite important in the SHAP plot, where high values tend to push model output higher.
+            * **Geological Meaning**: (Same as Ta geological meaning above)
+
+        """,
+        "model_insights_geological_meaning_svm": """
+        The Support Vector Machine (SVM) model identifies its key predictive variables through permutation importance and its SHAP summary plot.
+
+        * **Key Influential Variables:**
+
+        1.  **$TiO_2\_ppm\_clr$ (Titanium Dioxide)**:
+            * **Observations from plots**: Ranked first in permutation importance. In the SHAP plot, high values tend to push the model output higher.
+            * **Geological Meaning**: (Same as $TiO_2$ geological meaning in Random Forest above) $TiO_2$ content is an important indicator for distinguishing rock types and reflecting the degree of magma evolution.
+
+        2.  **$Nb\_clr$ (Niobium)**:
+            * **Observations from plots**: Ranked second in permutation importance. In the SHAP plot, high values tend to push the model output higher.
+            * **Geological Meaning**: (Same as Nb geological meaning in Random Forest above) Nb is an indicator of highly evolved magmas and specific types of mineralization.
+
+        3.  **$Hf\_clr$ (Hafnium)**:
+            * **Observations from plots**: Ranked high in permutation importance.
+            * **Geological Meaning**: Hafnium (Hf) behaves geochemically very similarly to Zirconium (Zr) (the Zr/Hf ratio is relatively constant unless extreme fractionation occurs). Hf is primarily hosted in zircon. Hf isotopes ($^{176}Hf/^{177}Hf$) are powerful tools for studying crustal and mantle evolution and tracing magma sources. Its importance may relate to distinguishing rocks with different source regions or evolutionary histories.
+
+        4.  **$TFe_2O_3\_ppm\_clr$ (Total Iron Oxides)**:
+            * **Observations from plots**: Ranked high in permutation importance. In the SHAP plot, high values tend to push the model output higher.
+            * **Geological Meaning**: Total iron content ($TFe_2O_3$) is a key parameter for distinguishing mafic from felsic rocks and reflects the overall composition and evolutionary stage of a magma. High $TFe_2O_3$ typically indicates more basic or less evolved magmas.
+
+        5.  **$MgO\_ppm\_clr$ (Magnesium Oxide)**:
+            * **Observations from plots**: Ranked high in permutation importance. In the SHAP plot, high values tend to push the model output higher.
+            * **Geological Meaning**: Magnesium oxide ($MgO$) content is an indicator of magma primitiveness. High $MgO$ is often associated with primitive magmas derived from the mantle or with cumulates (e.g., dunites). As magma differentiates, $MgO$ content decreases due to the crystallization of mafic minerals.
+
+        6.  **$Th\_clr$ (Thorium)**:
+            * **Observations from plots**: Ranked high in permutation importance. In the SHAP plot, high values tend to push the model output higher.
+            * **Geological Meaning**: Thorium (Th) is an incompatible radioactive element that becomes enriched in the late stages of magma evolution. It is common in highly evolved granites, pegmatites, and alkaline rocks. Th can also indicate certain rare element mineralizations.
+
+        """,
+        "model_insights_geological_meaning_dnn": """
+        For the PyTorch DNN model, we primarily interpret feature contributions through the SHAP summary plot.
+
+        * **Key Influential Variables:**
+
+        1.  **$Nb\_clr$ (Niobium)**:
+            * **Observations from plots**: Has the largest overall impact in the SHAP plot; high values tend to push the model output higher.
+            * **Geological Meaning**: (Same as Nb geological meaning above)
+
+        2.  **$TiO_2\_ppm\_clr$ (Titanium Dioxide)**:
+            * **Observations from plots**: Shows significant impact in the SHAP plot; high values tend to push the model output higher.
+            * **Geological Meaning**: (Same as $TiO_2$ geological meaning above)
+
+        3.  **$Th\_clr$ (Thorium)**:
+            * **Observations from plots**: Shows significant impact in the SHAP plot; high values tend to push the model output higher.
+            * **Geological Meaning**: (Same as Th geological meaning above)
+
+        4.  **$MgO\_ppm\_clr$ (Magnesium Oxide)**:
+            * **Observations from plots**: Shows significant impact in the SHAP plot; high values tend to push the model output higher.
+            * **Geological Meaning**: (Same as $MgO$ geological meaning above)
+
+        5.  **$TFe_2O_3\_ppm\_clr$ (Total Iron Oxides)**:
+            * **Observations from plots**: Shows significant impact in the SHAP plot; high values tend to push the model output higher.
+            * **Geological Meaning**: (Same as $TFe_2O_3$ geological meaning above)
+
+        6.  **$Zr\_clr$ (Zirconium)**:
+            * **Observations from plots**: Shows a relatively significant impact in the SHAP plot; high values tend to push the model output higher.
+            * **Geological Meaning**: Zirconium (Zr) is primarily hosted in zircon ($ZrSiO_4$), a physically and chemically very stable accessory mineral. Zr is an incompatible element and becomes enriched during magma evolution. Zircon is a key mineral for U-Pb dating and Hf isotopic studies, making Zr content and its relationships with other elements (e.g., Hf, Ti) important for determining rock age, magma temperature, source characteristics, and evolutionary history.
+
+        """,
+
 
 
         # help_about.py
@@ -271,11 +391,11 @@ TEXTS = {
         "help_about_project_ack_header": "Project & Acknowledgements",
         "help_about_project_ack_content": """
     * This tool was developed as part of the COMMON TOOLS FOR DATA SCIENCE final project.
-    * **Team:** [Your Team Name or Group Number: e.g., 2025GXX-ProjectName]
-        * [Team Member 1]
-        * [Team Member 2]
-        * [Team Member 3]
-        * [Team Member 4 (and 5 if applicable)]
+    * **Team:** 2025-Geochemical Porphyry Rock Classifier
+        * Jiancheng Lu | 2240002076@student.must.edu.mo
+        * Liuming Peng | 2240029653@student.must.edu.mo
+        * Jiageng Wu | 2240001061@student.must.edu.mo
+        * Jiaan Xie | 2240025714@student.must.edu.mo
     * **Dataset:** "2025-Project-Data.xlsx" (provided for the course).
     * **Inspiration for GUI Structure:** `rascore.streamlit.app` by Mitch Parker.
     """,
@@ -347,7 +467,7 @@ TEXTS = {
         "page_help_about": "帮助/关于",
 
         # Home.py Texts
-        "home_title": "地球化学岩石分类器",
+        "home_title": "基于地球化学的斑岩矿物分类器",
         "home_subtitle": "智能分析地球化学数据，精准预测斑岩矿石类型。",
         "home_intro": """
             本工具利用先进的机器学习模型，根据岩石样本的36种主量和微量元素地球化学数据，
@@ -373,7 +493,8 @@ TEXTS = {
         "home_app_overview_li2": "解读控制分类结果的关键地球化学特征。",
         "home_app_overview_li3": "提供一个用户友好的离线预测工具。",
         "home_app_overview_p2": """
-            我们利用包含445个斑岩样本（298个富铜，147个富金）和36个地球化学元素（主量元素wt%，微量元素ppm）的数据集进行模型训练与评估。
+            我们利用由36个地球化学元素（主量元素wt%，微量元素ppm）作为特征构成的
+            共计445个斑岩样本（298个富铜，147个富金）的数据集进行模型训练与评估。
         """,
         "home_further_assistance_info": "有关详细的使用说明、特征定义、模型信息和技术细节，请访问 **❓ Help / About** 页面。",
         "home_image_caption": "斑岩矿床图示",
@@ -479,6 +600,7 @@ TEXTS = {
         "perf_viz_precision_label": "精确率 ({class_name})",
         "perf_viz_recall_label": "召回率 ({class_name})",
         "perf_viz_f1_label": "F1分数 ({class_name})",
+        "perf_viz_positive_class_note": "*注意：富铜斑岩样品(Cu-rich PCDs)被视为正类以计算这些指标。",
         "perf_viz_visualizations_subheader": "可视化图表",
         "perf_viz_cm_tab": "混淆矩阵",
         "perf_viz_roc_tab": "ROC曲线",
@@ -493,7 +615,7 @@ TEXTS = {
         "perf_viz_roc_title_markdown": "#### ROC曲线",
         "perf_viz_selected_model_placeholder": "所选模型",
         "perf_viz_roc_caption": """
-            接收者操作特征（ROC）曲线说明了分类器在其判别阈值变化时的诊断能力。
+            受试者工作特征（ROC）曲线说明了分类器在其判别阈值变化时的诊断能力。
             曲线下面积（AUC）衡量的是从（0,0）到（1,1）整个ROC曲线下方的整个二维区域。
             一个100%准确的模型其AUC为1.0。
         """,
@@ -537,16 +659,131 @@ TEXTS = {
         "model_insights_shap_dependence_caption": "{feature_name} ({model_name}) 的SHAP依赖图 (来自训练数据)。",
         "model_insights_shap_dependence_config_missing": "{model_name} 的SHAP依赖图配置不可用。",
         "model_insights_geological_meaning_header": "重要变量的地质意义 (讨论)",
-        "model_insights_geological_meaning_desc": """
-        *（本部分应填写您对5-10个最具影响力的变量及其地质意义的讨论，
-        基于您项目的可解释性分析。）*
+        "model_insights_geological_meaning_rf": """
+        随机森林模型通过其特征重要性条形图和SHAP总结图共同揭示了影响模型预测的关键地球化学变量。
 
-        例如:
-        * **SiO₂ (二氧化硅):**较高的二氧化硅含量通常与更长英质的岩浆相关，这可能与某些类型的斑岩矿床有关...
-        * **Cu/Au 比值 (如果经过特征工程):** 这直接为分类提供了信息...
-        * **K₂O/Na₂O:** 指示碱度，在岩浆演化和成矿作用中起作用...
-        * **Sr/Y 比值:** 可以是板片熔融参与或地壳厚度的指标...
+        * **主要影响变量 (Key Influential Variables):**
+
+        1.  **$Nb\_clr$ (铌)**:
+            * **图表表现**: 在特征重要性排序中位列第一，SHAP图中显示高的$Nb\_clr$值（红点）倾向于产生正的SHAP值（推高模型输出）。
+            * **地质意义**: 铌 (Nb) 是一种高场强元素 (HFSE)，通常在高度分异演化的岩浆（如碱性岩、碳酸岩、稀有金属花岗岩）中富集。其含量可以指示岩浆的演化程度、源区特性（如俯冲带流体交代影响）或特定矿化作用（如铌钽矿）。
+
+        2.  **$TiO_2\_ppm\_clr$ (二氧化钛)**:
+            * **图表表现**: 特征重要性位列第二，SHAP图中显示高的$TiO_2\_ppm\_clr$值倾向于推高模型输出。
+            * **地质意义**: 二氧化钛 ($TiO_2$) 是常见于多种火成岩中的组分。其含量变化可以反映岩浆的类型（基性岩浆通常比酸性岩浆富$TiO_2$）、分异程度和氧化还原状态。它可以作为区分不同岩石类型或演化阶段的指标。
+
+        3.  **$SiO_2\_ppm\_clr$ (二氧化硅)**:
+            * **图表表现**: 特征重要性位列第三，SHAP图中显示高的$SiO_2\_ppm\_clr$值倾向于推高模型输出。
+            * **地质意义**: 二氧化硅 ($SiO_2$) 是火成岩分类的最基本化学指标，决定了岩石的酸碱性（如酸性、中性、基性、超基性）。此变量的重要性表明模型可能在区分具有显著$SiO_2$含量差异的主要岩石类别。
+
+        4.  **$Er\_clr$ (铒)**:
+            * **图表表现**: 特征重要性排名靠前。铒是重稀土元素。
+            * **地质意义**: 铒 (Er) 属于重稀土元素 (HREE)。稀土元素的含量和配分模式（尤其是重稀土相对于轻稀土的富集或亏损）对于判断岩浆源区（如是否存在石榴石残留）、分离结晶过程以及某些特定类型的矿化（如离子吸附型稀土矿）非常重要。
+
+        5.  **$Al_2O_3\_ppm\_clr$ (三氧化二铝)**:
+            * **图表表现**: 特征重要性排名靠前，SHAP图中高值倾向于推高模型输出。
+            * **地质意义**: 三氧化二铝 ($Al_2O_3$) 是地壳中的主要组分之一，是长石和云母等主要造岩矿物的构成成分。其含量高低可反映长英质矿物的多寡，也与铝饱和度有关，可用于区分不同成因类型的花岗岩（如S型、I型、A型）。
+
+        6.  **$Ta\_clr$ (钽)**:
+            * **图表表现**: 在SHAP图中较为重要，高值倾向于推高模型输出。
+            * **地质意义**: 钽 (Ta) 的地球化学行为与铌 (Nb) 非常相似，两者常伴生。Ta也是一种高场强元素，富集于高度演化的岩浆体系中，是稀有金属矿产（如钽矿）的重要指示元素。
         """,
+        "model_insights_geological_meaning_xgb": """
+        XGBoost模型也通过其特征重要性图和SHAP总结图显示了对预测有显著贡献的变量。
+
+        * **主要影响变量 (Key Influential Variables):**
+
+        1.  **$Yb\_clr$ (镱)**:
+            * **图表表现**: 特征重要性位列第一，SHAP图中高值倾向于推高模型输出。
+            * **地质意义**: 镱 (Yb) 是一种重稀土元素 (HREE)。HREEs的富集或亏损，特别是相对于轻稀土元素 (LREEs) 的比值 (如La/Yb)，对于判断岩浆源区深度（如石榴石稳定域）、熔融程度和分离结晶过程（如角闪石的控制）非常关键。
+
+        2.  **$Nb\_clr$ (铌)**:
+            * **图表表现**: 特征重要性位列第二，SHAP图中高值倾向于推高模型输出。
+            * **地质意义**: (同上文Nb的地质意义)
+
+        3.  **$Er\_clr$ (铒)**:
+            * **图表表现**: 特征重要性排名靠前。
+            * **地质意义**: (同上文Er的地质意义) Er作为重稀土元素，其行为有助于揭示岩浆过程。
+
+        4.  **$La\_clr$ (镧)**:
+            * **图表表现**: 特征重要性排名靠前。
+            * **地质意义**: 镧 (La) 是一种轻稀土元素 (LREE)。LREEs与HREEs的相对丰度 (如La/Yb比率) 是岩石成因研究中的重要参数，可以反映源区特征（如富集地幔 vs. 亏损地幔）和演化过程。
+
+        5.  **$SiO_2\_ppm\_clr$ (二氧化硅)**:
+            * **图表表现**: 特征重要性排名靠前。
+            * **地质意义**: (同上文$SiO_2$的地质意义)
+
+        6.  **$TiO_2\_ppm\_clr$ (二氧化钛)**:
+            * **图表表现**: 特征重要性排名靠前，SHAP图中高值倾向于推高模型输出。
+            * **地质意义**: (同上文$TiO_2$的地质意义)
+
+        7.  **$MgO\_ppm\_clr$ (氧化镁)**:
+            * **图表表现**: 在SHAP图中较为重要，高值倾向于推高模型输出。
+            * **地质意义**: (同上文$MgO$的地质意义)
+
+        8.  **$Ta\_clr$ (钽)**:
+            * **图表表现**: 在SHAP图中较为重要，高值倾向于推高模型输出。
+            * **地质意义**: (同上文Ta的地质意义)
+        """,
+        "model_insights_geological_meaning_svm": """
+        支持向量机模型通过排列重要性 (Permutation Importance) 和SHAP总结图确定了其预测中的关键变量。
+
+        * **主要影响变量 (Key Influential Variables):**
+
+        1.  **$TiO_2\_ppm\_clr$ (二氧化钛)**:
+            * **图表表现**: 在排列重要性中位列第一，SHAP图中高值倾向于推高模型输出。
+            * **地质意义**: (同上文随机森林中$TiO_2$的地质意义) $TiO_2$含量是区分岩石类型和反映岩浆演化程度的重要指标。
+
+        2.  **$Nb\_clr$ (铌)**:
+            * **图表表现**: 排列重要性位列第二，SHAP图中高值倾向于推高模型输出。
+            * **地质意义**: (同上文随机森林中Nb的地质意义) Nb是高度演化岩浆和特定矿化的指示剂。
+
+        3.  **$Hf\_clr$ (铪)**:
+            * **图表表现**: 排列重要性中排名靠前。
+            * **地质意义**: 铪 (Hf) 的地球化学行为与锆 (Zr) 高度相似（两者比值Zr/Hf相对稳定，除非有极端分异）。Hf主要赋存在锆石中。Hf同位素 ($^{176}Hf/^{177}Hf$) 是研究地壳和地幔演化、岩浆源区示踪的有力工具。其重要性可能与区分具有不同源区或演化历史的岩石有关。
+
+        4.  **$TFe_2O_3\_ppm\_clr$ (全铁氧化物)**:
+            * **图表表现**: 排列重要性中排名靠前，SHAP图中高值倾向于推高模型输出。
+            * **地质意义**: 全铁含量 ($TFe_2O_3$) 是区分镁铁质岩石和长英质岩石的关键参数，反映了岩浆的整体成分和演化阶段。高$TFe_2O_3$通常指示更基性或未充分演化的岩浆。
+
+        5.  **$MgO\_ppm\_clr$ (氧化镁)**:
+            * **图表表现**: 排列重要性中排名靠前，SHAP图中高值倾向于推高模型输出。
+            * **地质意义**: 氧化镁 ($MgO$) 含量是衡量岩浆原始程度的指标。高$MgO$通常与源自地幔的原始岩浆或堆积相（如橄榄岩）有关。随着岩浆分异，镁铁质矿物结晶析出，$MgO$含量会降低。
+
+        6.  **$Th\_clr$ (钍)**:
+            * **图表表现**: 排列重要性中排名靠前，SHAP图中高值倾向于推高模型输出。
+            * **地质意义**: 钍 (Th) 是一种不相容的放射性元素，在岩浆演化晚期富集。常见于高度演化的花岗岩、伟晶岩和碱性岩。Th也可指示某些稀有元素矿化。
+        """,
+        "model_insights_geological_meaning_dnn": """
+        对于PyTorch DNN模型，我们主要通过SHAP总结图来理解特征的贡献。
+
+      * **主要影响变量 (Key Influential Variables):**
+
+        1.  **$Nb\_clr$ (铌)**:
+            * **图表表现**: SHAP图中整体影响最大，高值倾向于推高模型输出。
+            * **地质意义**: (同上文Nb的地质意义)
+
+        2.  **$TiO_2\_ppm\_clr$ (二氧化钛)**:
+            * **图表表现**: SHAP图中影响显著，高值倾向于推高模型输出。
+            * **地质意义**: (同上文$TiO_2$的地质意义)
+
+        3.  **$Th\_clr$ (钍)**:
+            * **图表表现**: SHAP图中影响显著，高值倾向于推高模型输出。
+            * **地质意义**: (同上文Th的地质意义)
+
+        4.  **$MgO\_ppm\_clr$ (氧化镁)**:
+            * **图表表现**: SHAP图中影响显著，高值倾向于推高模型输出。
+            * **地质意义**: (同上文$MgO$的地质意义)
+
+        5.  **$TFe_2O_3\_ppm\_clr$ (全铁氧化物)**:
+            * **图表表现**: SHAP图中影响显著，高值倾向于推高模型输出。
+            * **地质意义**: (同上文$TFe_2O_3$的地质意义)
+
+        6.  **$Zr\_clr$ (锆)**:
+            * **图表表现**: SHAP图中影响较为显著，高值倾向于推高模型输出。
+            * **地质意义**: 锆 (Zr) 主要赋存于锆石 ($ZrSiO_4$) 中，锆石是一种物理化学性质非常稳定的副矿物。Zr是不相容元素，在岩浆演化中会富集。锆石是进行U-Pb定年和Hf同位素研究的关键矿物，因此Zr含量及其与其他元素（如Hf, Ti）的关系，对于判断岩石年龄、岩浆温度、源区性质和演化历史非常重要。
+        """,
+
 
         # help_about.py
         "help_about_title": "帮助 / 关于此工具",
@@ -588,11 +825,11 @@ TEXTS = {
         "help_about_project_ack_header": "项目与致谢",
         "help_about_project_ack_content": """
     * 此工具是作为“数据科学通用工具”最终项目的一部分开发的。
-    * **团队:** [您的团队名称或组号: 例如, 2025GXX-项目名称]
-        * [团队成员 1]
-        * [团队成员 2]
-        * [团队成员 3]
-        * [团队成员 4 (及5，如适用)]
+    * **团队:** 2025G10-基于地球化学的斑岩矿石分类器
+        * 陆健成 | 2240002076@student.must.edu.mo
+        * 彭柳铭 | 2240029653@student.must.edu.mo
+        * 吴佳庚 | 2240001061@student.must.edu.mo
+        * 谢家桉 | 2240025714@student.must.edu.mo
     * **数据集:** "2025-Project-Data.xlsx" (课程提供)。
     * **GUI结构灵感来源:** Mitch Parker 的 `rascore.streamlit.app`。
     """,
@@ -634,7 +871,7 @@ TEXTS = {
         "viz_pr_xlabel": "召回率",
         "viz_pr_ylabel": "精确率",
         "viz_pr_title": "精确率-召回率曲线 - {model_name}",
-        "viz_fi_title": "前 {n_features} 个特征重要性 - {model_name}",
+        "viz_fi_title": "前 {n_features} 个主特征重要性 - {model_name}",
         "viz_fi_xlabel": "重要性得分",
         "viz_fi_ylabel": "特征",
 

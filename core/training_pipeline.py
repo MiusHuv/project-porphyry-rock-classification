@@ -1,3 +1,4 @@
+from pathlib import Path
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -41,6 +42,7 @@ if not os.path.exists(OUTPUT_PLOT_DIR):
 MODELS_DIR = "models"
 ASSETS_DIR = "assets"
 EDA_PLOTS_DIR = os.path.join(ASSETS_DIR, "eda_plots")
+FEATIMPORT_PLOTS_DIR = os.path.join(ASSETS_DIR, "importance_plots") # For RF/XGBoost feature importance plots
 SHAP_PLOTS_DIR = os.path.join(ASSETS_DIR, "shap_plots") # For GUI consistency
 MODEL_SPECIFIC_PLOTS_DIR = os.path.join(EDA_PLOTS_DIR, "model_specific") # For RF/XGBoost n_estimators plots
 
@@ -246,9 +248,6 @@ def run_training_pipeline():
     models_predictions_proba = {}
     trained_models = {} # To store trained model objects for SHAP
 
-    # Ensure X_train, X_test are DataFrames with feature names for models if they expect it
-    # (they are already DataFrames from load_and_prepare_data)
-
     print("\n-- Training Random Forest --")
     # Pass MODEL_SPECIFIC_PLOTS_DIR to train_random_forest if it saves plots internally
     rf_model, rf_importances = train_random_forest(
@@ -268,7 +267,7 @@ def run_training_pipeline():
         save_figure(rf_cm_fig, "rf_confusion_matrix.png", EDA_PLOTS_DIR)
         if rf_importances is not None and rf_importances.any():
             rf_fi_fig = plot_feature_importances(rf_importances, final_feature_names_for_model, "Random Forest")
-            save_figure(rf_fi_fig, "rf_feature_importances.png", EDA_PLOTS_DIR)
+            save_figure(rf_fi_fig, "random_forest_feature_importances", FEATIMPORT_PLOTS_DIR)
 
     print("\n-- Training SVM --")
     svm_model, svm_importances = train_svm(
@@ -286,7 +285,7 @@ def run_training_pipeline():
         save_figure(svm_cm_fig, "svm_confusion_matrix.png", EDA_PLOTS_DIR)
         if svm_importances is not None and svm_importances.any(): # svm_importances is permutation importance
             svm_fi_fig = plot_feature_importances(svm_importances, final_feature_names_for_model, "SVM (Permutation)")
-            save_figure(svm_fi_fig, "svm_feature_importances.png", EDA_PLOTS_DIR)
+            save_figure(svm_fi_fig, "svm_feature_importances", FEATIMPORT_PLOTS_DIR)
 
 
     print("\n-- Training PyTorch DNN --")
@@ -413,7 +412,7 @@ def run_training_pipeline():
         
         if xgb_importances is not None and xgb_importances.any():
             xgb_fi_fig = plot_feature_importances(xgb_importances, final_feature_names_for_model, "XGBoost")
-            save_figure(xgb_fi_fig, "xgb_feature_importances.png", EDA_PLOTS_DIR)
+            save_figure(xgb_fi_fig, "xgboost_feature_importances", FEATIMPORT_PLOTS_DIR)
 
 # --- 4. Combined ROC and PR Curves ---
     if models_predictions_proba:
@@ -427,13 +426,14 @@ def run_training_pipeline():
         pr_fig = plot_precision_recall_curves(y_test_for_curves, models_predictions_proba, class_names_from_encoder, num_classes)
         save_figure(pr_fig, "combined_precision_recall_curves.png", EDA_PLOTS_DIR)
 
-    # # --- 5. SHAP Value Analysis (after all models are trained) ---
-    print("\n--- Stage 5: SHAP Value Analysis ---")
+    # # # --- 5. SHAP Value Analysis (after all models are trained) ---
+    # print("\n--- Stage 5: SHAP Value Analysis ---")
     
     if X_test.empty:
         print("X_test is empty, skipping SHAP plot generation.")
     else:
         sample_size_shap = min(100, len(X_test))
+        top_shap_features_by_model = {}  # To store top SHAP features by model
         if sample_size_shap > 0:
             # X_test is already a DataFrame with final_feature_names_for_model
             X_test_sample_shap = X_test.sample(n=sample_size_shap, random_state=RANDOM_STATE)
@@ -443,7 +443,7 @@ def run_training_pipeline():
                     # Map display name to a filename-safe version
                     model_filename_key = model_key_name.lower().replace(' ', '_').replace('(', '').replace(')', '').replace('.', '')
                     print(f"\nGenerating SHAP plots for {model_key_name} (filename key: {model_filename_key})...")
-                    generate_and_save_shap_plots(
+                    generated_dependence_features  = generate_and_save_shap_plots(
                         model_instance,
                         X_test_sample_shap, # This is the scaled data
                         final_feature_names_for_model,
@@ -452,8 +452,21 @@ def run_training_pipeline():
                         class_names_list=class_names_from_encoder,
                         plot_dir=SHAP_PLOTS_DIR
                     )
+                    if generated_dependence_features:
+                        top_shap_features_by_model[model_key_name] = generated_dependence_features
+                        print(f"SHAP plots for {model_key_name} saved successfully.")
+                    else:
+                        print(f"Warning: No SHAP plots generated for {model_key_name}.")
         else:
             print("Not enough samples in X_test for SHAP analysis.")
+    if top_shap_features_by_model:
+        top_features_save_path = Path(MODELS_DIR) / "top_shap_features_for_dependence_plots.json"
+        try:
+            with open(top_features_save_path, 'w') as f:
+                json.dump(top_shap_features_by_model, f, indent=4)
+            print(f"\nTop SHAP features for dependence plots saved to: {top_features_save_path}")
+        except Exception as e:
+            print(f"Error saving top SHAP features JSON: {e}")
 
     print("\n--- Training and Evaluation Pipeline Complete ---")
 

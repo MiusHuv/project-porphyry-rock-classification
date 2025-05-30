@@ -26,7 +26,7 @@ def plot_pair_scatter_matrix(df, key_elements, target_column_name=None, sample_n
     if target_column_name and target_column_name in df_plot.columns:
         g = sns.pairplot(df_plot, vars=actual_key_elements, 
                          hue=target_column_name, diag_kind='kde', 
-                        #  corner=True, 
+                         
                          palette='viridis')
     else:
         if target_column_name:
@@ -92,7 +92,7 @@ def plot_pca_biplot(X_scaled, y_encoded_labels, class_names, feature_names):
     else:
         target_for_hue = None # No hue if no target info
 
-    fig, ax = plt.subplots(figsize=(12, 10))
+    fig, ax = plt.subplots(figsize=(10, 8))
 
     sns.scatterplot(data=pc_df, x='PC1', y='PC2', hue=target_for_hue, ax=ax, palette='viridis', s=50, alpha=0.7)
 
@@ -104,16 +104,16 @@ def plot_pca_biplot(X_scaled, y_encoded_labels, class_names, feature_names):
 
     if feature_names and len(feature_names) == X_scaled.shape[1]:
         loadings = pca.components_.T * np.sqrt(pca.explained_variance_)
-        num_features_to_show = min(len(feature_names), 10)
+        num_features_to_show = min(len(feature_names), 34)
         loading_magnitudes = np.sqrt(loadings[:,0]**2 + loadings[:,1]**2)
         top_feature_indices = np.argsort(loading_magnitudes)[-num_features_to_show:]
 
         for i in top_feature_indices:
-            ax.arrow(0, 0, loadings[i, 0]*2.5, loadings[i, 1]*2.5, 
-                      color='r', alpha=0.6, head_width=0.05, head_length=0.05, zorder=3)
-            ax.text(loadings[i, 0]*2.8, loadings[i, 1]*2.8, feature_names[i], 
-                     color='black', ha='center', va='center', fontsize=9, zorder=3,
-                     bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.5))
+            ax.arrow(0, 0, loadings[i, 0]*5, loadings[i, 1]*5, 
+                      color='r', alpha=0.5, head_width=0.1, head_length=0.1, zorder=3)
+            ax.text(loadings[i, 0]*5.5, loadings[i, 1]*5.5, feature_names[i], 
+                     color='black', ha='center', va='center', fontsize=9, zorder=3)
+            
     
     plt.tight_layout()
     print(f"PCA Explained Variance Ratio: PC1={pca.explained_variance_ratio_[0]:.3f}, PC2={pca.explained_variance_ratio_[1]:.3f}")

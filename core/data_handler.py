@@ -547,12 +547,3 @@ def preprocess_data_for_prediction(raw_df_input, scaler_object, trained_feature_
     X_scaled_df = pd.DataFrame(X_scaled_np, columns=trained_feature_names, index=X_predict.index)
 
     return X_scaled_df
-
-# Add load_data and validate_data if they are not already present or need slight modification for GUI context
-# For now, assuming they are mostly suitable from the existing file.
-# The `validate_data` function in run_prediction.py uses EXPECTED_COLUMNS.
-# Ensure this is consistent with RAW_EXPECTED_GEOCHEMICAL_FEATURES
-# Let's rename EXPECTED_COLUMNS in run_prediction.py to RAW_EXPECTED_GEOCHEMICAL_FEATURES and import it.
-
-# In data_handler.py, ensure skbio warning is clear if it's not found during training/prediction.
-# The `SKBIO_AVAILABLE` flag is already used.

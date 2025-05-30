@@ -19,7 +19,7 @@ def train_random_forest(X_train, y_train, feature_names,
     saves the model, and returns the best model and its feature importances.
     """
     if n_estimators_range is None:
-        n_estimators_range = list(range(50, 151, 25)) # Default range
+        n_estimators_range = list(range(50, 201, 25)) # Default range
 
     # Create directory for saving models if it doesn't exist
     if not os.path.exists(model_save_dir):
@@ -66,18 +66,16 @@ def train_random_forest(X_train, y_train, feature_names,
         optimal_n_trees = n_estimators_range[optimal_n_trees_idx]
 
     if plot_curves:
-        plot_loss_vs_trees(train_scores, val_scores, n_estimators_range, "Random Forest")
+        loss_fig, optimal_n_trees_from_plot = plot_loss_vs_trees(train_scores, val_scores, n_estimators_range, "Random Forest")
     else:
         print(f"Optimal number of trees for Random Forest based on validation accuracy: {optimal_n_trees}")
+        loss_fig, optimal_n_trees_from_plot = None, n_estimators_range[np.argmax(val_scores)] if val_scores else n_estimators_range[0]
 
     print(f"Training final Random Forest model with {optimal_n_trees} trees...")
     best_rf_model = RandomForestClassifier(n_estimators=optimal_n_trees, random_state=random_state, oob_score=True)
     best_rf_model.fit(X_train, y_train) # Train on the full training set
     
     importances = best_rf_model.feature_importances_
-
-    # optimal_n_trees is now returned by plot_loss_vs_trees
-    loss_fig, optimal_n_trees_from_plot = None, n_estimators_range[np.argmax(val_scores)] if val_scores else n_estimators_range[0]
 
     if plot_curves and loss_fig: # loss_fig from plot_loss_vs_trees
         if not os.path.exists(plot_save_dir):

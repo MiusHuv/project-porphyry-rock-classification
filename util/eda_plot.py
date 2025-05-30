@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 import numpy as np
 
+# EDA
+
 def plot_pair_scatter_matrix(df, key_elements, target_column_name=None, sample_n=1000):
     if df is None or df.empty:
         print("EDA: DataFrame is empty. Skipping scatter matrix.")
@@ -26,7 +28,7 @@ def plot_pair_scatter_matrix(df, key_elements, target_column_name=None, sample_n
     if target_column_name and target_column_name in df_plot.columns:
         g = sns.pairplot(df_plot, vars=actual_key_elements, 
                          hue=target_column_name, diag_kind='kde', 
-                         
+                        #  corner=True, 
                          palette='viridis')
     else:
         if target_column_name:
@@ -34,6 +36,7 @@ def plot_pair_scatter_matrix(df, key_elements, target_column_name=None, sample_n
         g = sns.pairplot(df_plot, vars=actual_key_elements, diag_kind='kde', corner=True)
     
     g.fig.suptitle("Pair-wise Scatter Matrix of Key Elements", y=1.02, fontsize=16) # T("Pair-wise Scatter Matrix of Key Elements")
+    # g.fig.set_dpi(1500)
     plt.tight_layout(rect=[0, 0, 1, 0.96]) # Apply to g.fig if needed after suptitle, or let pairplot handle
     return g.fig
 
@@ -49,7 +52,8 @@ def plot_correlation_heatmap(df, method='pearson'):
     print(f"EDA: Generating {method} correlation heatmap.")
     fig, ax = plt.subplots(figsize=(14, 12)) # Increased size for better annotation visibility
     correlation_matrix = numeric_df.corr(method=method)
-    sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=.5, ax=ax, annot_kws={"size": 8}) # Smaller annotation font
+    # sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=.5, ax=ax, annot_kws={"size": 8}) # Smaller annotation font
+    sns.heatmap(correlation_matrix, annot=True, cmap='viridis', fmt=".2f", linewidths=.5, ax=ax, annot_kws={"size": 8}) # Smaller annotation font
     ax.set_title(f"{method.capitalize()} Correlation Heatmap", fontsize=16) # T(f"{method.capitalize()} Correlation Heatmap")
     plt.tight_layout()
     return fig
@@ -92,7 +96,7 @@ def plot_pca_biplot(X_scaled, y_encoded_labels, class_names, feature_names):
     else:
         target_for_hue = None # No hue if no target info
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=(12, 10))
 
     sns.scatterplot(data=pc_df, x='PC1', y='PC2', hue=target_for_hue, ax=ax, palette='viridis', s=50, alpha=0.7)
 
@@ -104,16 +108,16 @@ def plot_pca_biplot(X_scaled, y_encoded_labels, class_names, feature_names):
 
     if feature_names and len(feature_names) == X_scaled.shape[1]:
         loadings = pca.components_.T * np.sqrt(pca.explained_variance_)
-        num_features_to_show = min(len(feature_names), 34)
+        num_features_to_show = min(len(feature_names), 10)
         loading_magnitudes = np.sqrt(loadings[:,0]**2 + loadings[:,1]**2)
         top_feature_indices = np.argsort(loading_magnitudes)[-num_features_to_show:]
 
         for i in top_feature_indices:
-            ax.arrow(0, 0, loadings[i, 0]*5, loadings[i, 1]*5, 
-                      color='r', alpha=0.5, head_width=0.1, head_length=0.1, zorder=3)
-            ax.text(loadings[i, 0]*5.5, loadings[i, 1]*5.5, feature_names[i], 
-                     color='black', ha='center', va='center', fontsize=9, zorder=3)
-            
+            ax.arrow(0, 0, loadings[i, 0]*2.5, loadings[i, 1]*2.5, 
+                      color='r', alpha=0.6, head_width=0.05, head_length=0.05, zorder=3)
+            ax.text(loadings[i, 0]*2.8, loadings[i, 1]*2.8, feature_names[i], 
+                     color='black', ha='center', va='center', fontsize=9, zorder=3,
+                     bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.5))
     
     plt.tight_layout()
     print(f"PCA Explained Variance Ratio: PC1={pca.explained_variance_ratio_[0]:.3f}, PC2={pca.explained_variance_ratio_[1]:.3f}")

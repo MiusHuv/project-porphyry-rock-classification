@@ -5,6 +5,8 @@ from pathlib import Path
 from util.language import T, TEXTS
 
 def show_page():
+    st.title(T("home_title"))
+    
 
     left_col, right_col = st.columns(2)
 
@@ -28,7 +30,7 @@ def show_page():
             """, unsafe_allow_html=True)
 
     with right_col:
-        st.title(T("home_title"))
+        
         st.subheader(T("home_subtitle"))
         st.markdown(T("home_intro"))
         st.markdown(f"**{T('home_core_features_header')}**")

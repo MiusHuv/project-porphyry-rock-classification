@@ -1,4 +1,3 @@
-from pathlib import Path
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -42,7 +41,6 @@ if not os.path.exists(OUTPUT_PLOT_DIR):
 MODELS_DIR = "models"
 ASSETS_DIR = "assets"
 EDA_PLOTS_DIR = os.path.join(ASSETS_DIR, "eda_plots")
-FEATIMPORT_PLOTS_DIR = os.path.join(ASSETS_DIR, "importance_plots") # For RF/XGBoost feature importance plots
 SHAP_PLOTS_DIR = os.path.join(ASSETS_DIR, "shap_plots") # For GUI consistency
 MODEL_SPECIFIC_PLOTS_DIR = os.path.join(EDA_PLOTS_DIR, "model_specific") # For RF/XGBoost n_estimators plots
 
@@ -202,8 +200,8 @@ def run_training_pipeline():
         # If target column isn't in original df (shouldn't happen with create_dummy), handle gracefully
         print("Warning: Target column not found in df_original_for_ratio_plots for EDA hue.")
 
-
     # Scatter Matrix: focus on CLR transformed features if available, or other key numeric features
+    # --- 画 EDA 散点矩阵图 (Pair Scatter Matrix) ---
     key_elements_for_scatter = [col for col in temp_eda_df.columns if '_clr' in col][:10]
     if not key_elements_for_scatter: # Fallback if no CLR features (e.g. skbio failed or not used)
         key_elements_for_scatter = [col for col in temp_eda_df.select_dtypes(include=np.number).columns if col != 'EDA_Target_Hue'][:10]
@@ -215,12 +213,16 @@ def run_training_pipeline():
         save_figure(eda_scatter_fig, "eda_pair_scatter_matrix_after_transforms.png", EDA_PLOTS_DIR)
     else:
         print("Skipping EDA pair scatter matrix due to lack of suitable key elements.")
+    # ---
 
     # Correlation Heatmap
+    # --- 画 EDA 相关性热力图 (Correlation Heatmap) ---
     eda_corr_fig = plot_correlation_heatmap(temp_eda_df.drop(columns=['EDA_Target_Hue'], errors='ignore').select_dtypes(include=np.number))
     save_figure(eda_corr_fig, "eda_correlation_heatmap_after_transforms.png", EDA_PLOTS_DIR)
+    # ---
 
     # PCA Biplot: Use the same X_processed_for_eda_plots but scale it specifically for PCA
+    # --- 画 EDA PCA 双标图 (PCA Biplot) ---
     X_pca_candidate_df = temp_eda_df.drop(columns=['EDA_Target_Hue'], errors='ignore').select_dtypes(include=np.number)
     if not X_pca_candidate_df.empty and X_pca_candidate_df.shape[1] >=2:
         pca_feature_names_for_plot = X_pca_candidate_df.columns.tolist()
@@ -234,19 +236,26 @@ def run_training_pipeline():
         save_figure(pca_fig, "eda_pca_biplot_after_transforms.png", EDA_PLOTS_DIR)
     else:
         print("Skipping PCA plot as not enough numeric features were found or data is empty.")
+    # ---
 
     # Ratio plots use df_original_for_ratio_plots (which has minimal imputation for these specific columns if needed)
+    # --- 画 K2O/Na2O vs SiO2 比值图 (Geochemical Ratio Plot: K2O/Na2O vs SiO2) ---
     k2o_ratio_fig = plot_k2o_na2o_vs_sio2(df_original_for_ratio_plots, GEOCHEM_K2O_COL, GEOCHEM_NA2O_COL, GEOCHEM_SIO2_COL, target_col=TARGET_COLUMN)
     save_figure(k2o_ratio_fig, "eda_k2o_na2o_vs_sio2_ratio.png", EDA_PLOTS_DIR)
+    # ---
 
+    # --- 画 Sr/Y vs Y 比值图 (Geochemical Ratio Plot: Sr/Y vs Y) ---
     sr_y_ratio_fig = plot_sr_y_vs_y(df_original_for_ratio_plots, GEOCHEM_SR_COL, GEOCHEM_Y_COL, target_col=TARGET_COLUMN)
     save_figure(sr_y_ratio_fig, "eda_sr_y_vs_y_ratio.png", EDA_PLOTS_DIR)
+    # ---
 
-
-     # --- 3. Train and Evaluate Models ---
+    # --- 3. Train and Evaluate Models ---
     print("\n--- Stage 3: Model Training and Evaluation ---")
     models_predictions_proba = {}
     trained_models = {} # To store trained model objects for SHAP
+
+    # Ensure X_train, X_test are DataFrames with feature names for models if they expect it
+    # (they are already DataFrames from load_and_prepare_data)
 
     print("\n-- Training Random Forest --")
     # Pass MODEL_SPECIFIC_PLOTS_DIR to train_random_forest if it saves plots internally
@@ -263,11 +272,15 @@ def run_training_pipeline():
         models_predictions_proba['Random Forest'] = y_pred_proba_rf
         print("\nRandom Forest - Test Set Evaluation:")
         print(classification_report(y_test, y_pred_rf, target_names=class_names_from_encoder, zero_division=0))
+        # --- 画 RF 混淆矩阵 (Confusion Matrix for Random Forest) ---
         rf_cm_fig = plot_confusion_matrix_heatmap(y_test, y_pred_rf, class_names_from_encoder, "Random Forest")
         save_figure(rf_cm_fig, "rf_confusion_matrix.png", EDA_PLOTS_DIR)
+        # ---
+        # --- 画 RF 特征重要性 (Feature Importances for Random Forest) ---
         if rf_importances is not None and rf_importances.any():
             rf_fi_fig = plot_feature_importances(rf_importances, final_feature_names_for_model, "Random Forest")
-            save_figure(rf_fi_fig, "random_forest_feature_importances", FEATIMPORT_PLOTS_DIR)
+            save_figure(rf_fi_fig, "rf_feature_importances.png", EDA_PLOTS_DIR)
+        # ---
 
     print("\n-- Training SVM --")
     svm_model, svm_importances = train_svm(
@@ -281,12 +294,15 @@ def run_training_pipeline():
         models_predictions_proba['SVM'] = y_pred_proba_svm
         print("\nSVM - Test Set Evaluation:")
         print(classification_report(y_test, y_pred_svm, target_names=class_names_from_encoder, zero_division=0))
+        # --- 画 SVM 混淆矩阵 (Confusion Matrix for SVM) ---
         svm_cm_fig = plot_confusion_matrix_heatmap(y_test, y_pred_svm, class_names_from_encoder, "SVM")
         save_figure(svm_cm_fig, "svm_confusion_matrix.png", EDA_PLOTS_DIR)
+        # ---
+        # --- 画 SVM 特征重要性 (Feature Importances for SVM) ---
         if svm_importances is not None and svm_importances.any(): # svm_importances is permutation importance
             svm_fi_fig = plot_feature_importances(svm_importances, final_feature_names_for_model, "SVM (Permutation)")
-            save_figure(svm_fi_fig, "svm_feature_importances", FEATIMPORT_PLOTS_DIR)
-
+            save_figure(svm_fi_fig, "svm_feature_importances.png", EDA_PLOTS_DIR)
+        # ---
 
     print("\n-- Training PyTorch DNN --")
     # Split training data further for DNN validation if needed (already done if test_size > 0 in main split)
@@ -385,11 +401,12 @@ def run_training_pipeline():
             models_predictions_proba['PyTorch DNN'] = y_pred_proba_dnn
             print("\nPyTorch DNN - Test Set Evaluation:")
             print(classification_report(y_test, y_pred_dnn, target_names=class_names_from_encoder, zero_division=0))
+            # --- 画 DNN 混淆矩阵 (Confusion Matrix for PyTorch DNN) ---
             dnn_cm_fig = plot_confusion_matrix_heatmap(y_test, y_pred_dnn, class_names_from_encoder, "PyTorch DNN")
             save_figure(dnn_cm_fig, "dnn_pytorch_confusion_matrix.png", EDA_PLOTS_DIR)
+            # ---
     else:
         print("PyTorch DNN training failed or was skipped.")
-
 
     print("\n-- Training XGBoost --")
     xgb_model, xgb_importances = train_xgboost(
@@ -406,15 +423,18 @@ def run_training_pipeline():
         models_predictions_proba['XGBoost'] = y_pred_proba_xgb
         print("\nXGBoost - Test Set Evaluation:")
         print(classification_report(y_test, y_pred_xgb, target_names=class_names_from_encoder, zero_division=0))
-        
+        # --- 画 XGBoost 混淆矩阵 (Confusion Matrix for XGBoost) ---
         xgb_cm_fig = plot_confusion_matrix_heatmap(y_test, y_pred_xgb, class_names_from_encoder, "XGBoost")
         save_figure(xgb_cm_fig, "xgb_confusion_matrix.png", EDA_PLOTS_DIR)
-        
+        # ---
+        # --- 画 XGBoost 特征重要性 (Feature Importances for XGBoost) ---
         if xgb_importances is not None and xgb_importances.any():
             xgb_fi_fig = plot_feature_importances(xgb_importances, final_feature_names_for_model, "XGBoost")
-            save_figure(xgb_fi_fig, "xgboost_feature_importances", FEATIMPORT_PLOTS_DIR)
+            save_figure(xgb_fi_fig, "xgb_feature_importances.png", EDA_PLOTS_DIR)
+        # ---
 
-# --- 4. Combined ROC and PR Curves ---
+    # --- 4. Combined ROC and PR Curves ---
+    # --- 画 ROC 曲线 (Combined ROC Curves) ---
     if models_predictions_proba:
         print("\n--- Plotting Combined ROC and Precision-Recall Curves ---")
         # Ensure y_test is 1D array for roc/pr curve functions
@@ -423,17 +443,20 @@ def run_training_pipeline():
         roc_fig = plot_roc_curves(y_test_for_curves, models_predictions_proba, class_names_from_encoder, num_classes)
         save_figure(roc_fig, "combined_roc_curves.png", EDA_PLOTS_DIR)
 
+        # --- 画 PR 曲线 (Combined Precision-Recall Curves) ---
         pr_fig = plot_precision_recall_curves(y_test_for_curves, models_predictions_proba, class_names_from_encoder, num_classes)
         save_figure(pr_fig, "combined_precision_recall_curves.png", EDA_PLOTS_DIR)
+        # ---
+    # ---
 
-    # # # --- 5. SHAP Value Analysis (after all models are trained) ---
-    # print("\n--- Stage 5: SHAP Value Analysis ---")
+    # # --- 5. SHAP Value Analysis (after all models are trained) ---
+    # --- 画 SHAP 解释性分析图 (SHAP Value Plots) ---
+    print("\n--- Stage 5: SHAP Value Analysis ---")
     
     if X_test.empty:
         print("X_test is empty, skipping SHAP plot generation.")
     else:
         sample_size_shap = min(100, len(X_test))
-        top_shap_features_by_model = {}  # To store top SHAP features by model
         if sample_size_shap > 0:
             # X_test is already a DataFrame with final_feature_names_for_model
             X_test_sample_shap = X_test.sample(n=sample_size_shap, random_state=RANDOM_STATE)
@@ -443,7 +466,7 @@ def run_training_pipeline():
                     # Map display name to a filename-safe version
                     model_filename_key = model_key_name.lower().replace(' ', '_').replace('(', '').replace(')', '').replace('.', '')
                     print(f"\nGenerating SHAP plots for {model_key_name} (filename key: {model_filename_key})...")
-                    generated_dependence_features  = generate_and_save_shap_plots(
+                    generate_and_save_shap_plots(
                         model_instance,
                         X_test_sample_shap, # This is the scaled data
                         final_feature_names_for_model,
@@ -452,21 +475,9 @@ def run_training_pipeline():
                         class_names_list=class_names_from_encoder,
                         plot_dir=SHAP_PLOTS_DIR
                     )
-                    if generated_dependence_features:
-                        top_shap_features_by_model[model_key_name] = generated_dependence_features
-                        print(f"SHAP plots for {model_key_name} saved successfully.")
-                    else:
-                        print(f"Warning: No SHAP plots generated for {model_key_name}.")
         else:
             print("Not enough samples in X_test for SHAP analysis.")
-    if top_shap_features_by_model:
-        top_features_save_path = Path(MODELS_DIR) / "top_shap_features_for_dependence_plots.json"
-        try:
-            with open(top_features_save_path, 'w') as f:
-                json.dump(top_shap_features_by_model, f, indent=4)
-            print(f"\nTop SHAP features for dependence plots saved to: {top_features_save_path}")
-        except Exception as e:
-            print(f"Error saving top SHAP features JSON: {e}")
+    # ---
 
     print("\n--- Training and Evaluation Pipeline Complete ---")
 

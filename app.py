@@ -4,6 +4,9 @@ import streamlit as st
 from page import Home, run_prediction, performance_visualizer, model_insights, help_about, data_analysis
 from pathlib import Path
 from util.language import T, TEXTS
+
+st.set_page_config(layout="wide")
+
 # -----------------------------------------------------------------------------
 # 1. INITIALIZE SESSION STATE FOR LANGUAGE
 # -----------------------------------------------------------------------------

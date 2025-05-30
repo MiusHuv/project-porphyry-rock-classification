@@ -47,9 +47,9 @@ TEXTS = {
         "home_app_overview_li2": "Interpret the key geochemical signatures controlling the classification.",
         "home_app_overview_li3": "Provide a user-friendly offline prediction tool.",
         "home_app_overview_p2": """
-            We utilize a dataset of 445 porphyry samples (298 Cu-rich, 147 Au-rich) with 36
-            geochemical elemental features (major elements in wt%, trace elements in ppm)
-            for model training and evaluation.
+            We utilized a dataset comprising 445 porphyry samples (298 copper-rich and 147 gold-rich) 
+            that were characterized by 36 geochemical elements (major elements in weight percent and 
+            trace elements in parts per million) for the purposes of model training and evaluation.
         """,
         "home_further_assistance_info": "For detailed usage instructions, feature definitions, model information, and technical details, please visit the **❓ Help / About** page.",
         "home_image_caption": "Porphyry Deposit Illustration",
@@ -155,9 +155,9 @@ TEXTS = {
         "perf_viz_pred_label_processing_error": "Error processing predicted classes for performance metrics.",
         "perf_viz_metrics_subheader": "Performance Metrics",
         "perf_viz_accuracy_label": "Accuracy",
-        "perf_viz_precision_label": "Precision ({class_name})",
-        "perf_viz_recall_label": "Recall ({class_name})",
-        "perf_viz_f1_label": "F1-Score ({class_name})",
+        "perf_viz_precision_label": "Precision ",
+        "perf_viz_recall_label": "Recall ",
+        "perf_viz_f1_label": "F1-Score ",
         "perf_viz_visualizations_subheader": "Visualizations",
         "perf_viz_cm_tab": "Confusion Matrix",
         "perf_viz_roc_tab": "ROC Curve",
@@ -267,15 +267,15 @@ TEXTS = {
     """,
         "help_about_tech_stack_header": "Library Versions & Tech Stack",
         "help_about_tech_stack_intro": "This application was built using Python and relies on several key libraries:",
-        "help_about_tech_stack_caption": "To get exact versions, you can typically use `pip freeze > requirements.txt` in your project's virtual environment and list key ones here.",
+        "help_about_tech_stack_caption": "To get exact versions, you can typicalrequirements.txtly use `pip freeze > ` in your project's virtual environment and list key ones here.",
         "help_about_project_ack_header": "Project & Acknowledgements",
         "help_about_project_ack_content": """
     * This tool was developed as part of the COMMON TOOLS FOR DATA SCIENCE final project.
-    * **Team:** [Your Team Name or Group Number: e.g., 2025GXX-ProjectName]
-        * [Team Member 1]
-        * [Team Member 2]
-        * [Team Member 3]
-        * [Team Member 4 (and 5 if applicable)]
+    * **Team:** 2025G10-ProjectName
+        * 陆健成 | 22400
+        * 彭柳铭 | 2240029653@student.must.edu.mo
+        * 吴佳庚 | 2240001061@student.must.edu.mo
+        * 谢家桉 | 2240025714@student.must.edu.mo
     * **Dataset:** "2025-Project-Data.xlsx" (provided for the course).
     * **Inspiration for GUI Structure:** `rascore.streamlit.app` by Mitch Parker.
     """,
@@ -373,7 +373,8 @@ TEXTS = {
         "home_app_overview_li2": "解读控制分类结果的关键地球化学特征。",
         "home_app_overview_li3": "提供一个用户友好的离线预测工具。",
         "home_app_overview_p2": """
-            我们利用包含445个斑岩样本（298个富铜，147个富金）和36个地球化学元素（主量元素wt%，微量元素ppm）的数据集进行模型训练与评估。
+            我们利用由36个地球化学元素（主量元素wt%，微量元素ppm）作为特征构成的
+            共计445个斑岩样本（298个富铜，147个富金）的数据集进行模型训练与评估。
         """,
         "home_further_assistance_info": "有关详细的使用说明、特征定义、模型信息和技术细节，请访问 **❓ Help / About** 页面。",
         "home_image_caption": "斑岩矿床图示",
@@ -476,9 +477,9 @@ TEXTS = {
         "perf_viz_pred_label_processing_error": "处理用于性能指标的预测类别时出错。",
         "perf_viz_metrics_subheader": "性能指标",
         "perf_viz_accuracy_label": "准确率",
-        "perf_viz_precision_label": "精确率 ({class_name})",
-        "perf_viz_recall_label": "召回率 ({class_name})",
-        "perf_viz_f1_label": "F1分数 ({class_name})",
+        "perf_viz_precision_label": "精确率 ",
+        "perf_viz_recall_label": "召回率 ",
+        "perf_viz_f1_label": "F1分数 ",
         "perf_viz_visualizations_subheader": "可视化图表",
         "perf_viz_cm_tab": "混淆矩阵",
         "perf_viz_roc_tab": "ROC曲线",
@@ -588,11 +589,11 @@ TEXTS = {
         "help_about_project_ack_header": "项目与致谢",
         "help_about_project_ack_content": """
     * 此工具是作为“数据科学通用工具”最终项目的一部分开发的。
-    * **团队:** [您的团队名称或组号: 例如, 2025GXX-项目名称]
-        * [团队成员 1]
-        * [团队成员 2]
-        * [团队成员 3]
-        * [团队成员 4 (及5，如适用)]
+    * **团队:** 2025G10-地球化学矿石分类器
+        * 陆健成 | 22400
+        * 彭柳铭 | 2240029653@student.must.edu.mo
+        * 吴佳庚 | 2240001061@student.must.edu.mo
+        * 谢家桉 | 2240025714@student.must.edu.mo
     * **数据集:** "2025-Project-Data.xlsx" (课程提供)。
     * **GUI结构灵感来源:** Mitch Parker 的 `rascore.streamlit.app`。
     """,
@@ -634,7 +635,8 @@ TEXTS = {
         "viz_pr_xlabel": "召回率",
         "viz_pr_ylabel": "精确率",
         "viz_pr_title": "精确率-召回率曲线 - {model_name}",
-        "viz_fi_title": "前 {n_features} 个特征重要性 - {model_name}",
+        # "viz_fi_title": "前 {n_features} 个特征重要性 - {model_name}",
+        "viz_fi_title": "Top {n_features} Feature Importances - {model_name}",
         "viz_fi_xlabel": "重要性得分",
         "viz_fi_ylabel": "特征",
 

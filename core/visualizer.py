@@ -12,7 +12,6 @@ import pandas as pd
 import os
 import torch
 from pathlib import Path
-from util.language import T
 
 try:
     import shap
@@ -56,7 +55,7 @@ def plot_feature_importances(importances, feature_names, model_name, top_n=20):
     sns.barplot(x=sorted_importances.head(top_n).values, 
                 y=sorted_importances.head(top_n).index, 
                 hue=sorted_importances.head(top_n).index,
-                palette= "viridis", # Use a color palette for better visibility
+                palette= "crest", # Use a color palette for better visibility
                 orient='h',
                 legend=False,
                 ax=ax)
@@ -69,7 +68,7 @@ def plot_feature_importances(importances, feature_names, model_name, top_n=20):
 def plot_confusion_matrix_heatmap(y_true, y_pred, class_names_list, model_name):
     cm = confusion_matrix(y_true, y_pred)
     fig, ax = plt.subplots(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+    sns.heatmap(cm, annot=True, fmt='d', cmap='crest',
                 xticklabels=class_names_list, yticklabels=class_names_list, ax=ax)
     ax.set_xlabel("Predicted Label") # T("Predicted Label")
     ax.set_ylabel("True Label") # T("True Label")
@@ -114,7 +113,6 @@ def generate_and_save_shap_plots(model, X_sample_df_orig, feature_names_list, mo
 
     explainer = None
     shap_values_raw = None # This is the variable you identified as problematic
-    top_shap_features_for_dependence = []
 
     try:
         if model_type_str.lower() in ['random_forest', 'xgboost']: # Assuming model_type_str is filename_key
@@ -189,10 +187,19 @@ def generate_and_save_shap_plots(model, X_sample_df_orig, feature_names_list, mo
         shap_values_raw = None # Ensure it's None if any exception occurs here
 
     # --- Standardize shap_values structure for plotting ---
+    # (This section is from your provided code, ensure it correctly handles shap_values_raw being None)
     if shap_values_raw is None: # Check added from your log
         print(f"SHAP ({model_type_str}) Error: Unexpected type for shap_values_raw: <class 'NoneType'>. Cannot proceed with plotting.")
         return
+    # ... (rest of your shap_values_for_plotting and plotting logic using plot_dir_path for saving) ...
+    # Make sure to use plot_dir_path when saving:
+    # Example: save_path = plot_dir_path / f"{model_type_str...}.png"
+    # plt.savefig(save_path, bbox_inches='tight'); plt.close()
 
+    # --- (Your existing logic for standardizing shap_values_raw to shap_values_for_plotting) ---
+    # This section seems complex and specific to how different explainers return values.
+    # The key is that if shap_values_raw is None here, the following logic will fail.
+    # The check above `if shap_values_raw is None: return` handles this.
     
     shap_values_for_plotting = None
     is_multi_class_for_loops = False
@@ -230,6 +237,7 @@ def generate_and_save_shap_plots(model, X_sample_df_orig, feature_names_list, mo
         else: # num_classes_model < 2, should not happen
             print(f"SHAP ({model_type_str}) Error: num_classes_model is {num_classes_model}. Not handled for ndarray."); return
     else:
+        # This was already checked by `if shap_values_raw is None:`
         print(f"SHAP ({model_type_str}) Error: Unexpected type for shap_values_raw after explainer: {type(shap_values_raw)}"); return
 
 
@@ -240,34 +248,49 @@ def generate_and_save_shap_plots(model, X_sample_df_orig, feature_names_list, mo
         for i in range(len(shap_values_for_plotting)):
             plt.figure()
             class_label_safe = (class_names_list[i] if class_names_list and i < len(class_names_list) else f"Class_{i}").replace(' ', '_').lower()
-            shap.summary_plot(shap_values_for_plotting[i], X_sample_df_for_plot, feature_names=feature_names_list_str, show=False, plot_type="dot")
+            shap.summary_plot(
+                shap_values_for_plotting[i], 
+                X_sample_df_for_plot, 
+                feature_names=feature_names_list_str, 
+                show=False, 
+                plot_type="dot",
+                # color="viridis"  # 使用viridis调色盘
+                cmap=plt.get_cmap("viridis")
+            )
             plt.title(f"SHAP Summary for {class_label_safe} - {model_type_str}")
             save_path = plot_dir_path / f"{model_type_str}_shap_summary_{class_label_safe}.png" # Use Pathlib
             plt.savefig(save_path, bbox_inches='tight'); plt.close()
             print(f"  Saved: {save_path}")
-        summary_plot_generated = True
     elif shap_values_for_plotting is not None and hasattr(shap_values_for_plotting, 'ndim') and shap_values_for_plotting.ndim == 2:
         plt.figure()
-        shap.summary_plot(shap_values_for_plotting, X_sample_df_for_plot, feature_names=feature_names_list_str, show=False, plot_type="dot")
+        shap.summary_plot(
+            shap_values_for_plotting, 
+            X_sample_df_for_plot, 
+            feature_names=feature_names_list_str, 
+            show=False, 
+            plot_type="dot",
+            # color="viridis"  # 使用viridis调色盘
+            cmap=plt.get_cmap("viridis")
+        )
         plt.title(f"SHAP Summary Plot - {model_type_str}")
         save_path = plot_dir_path / f"{model_type_str}_shap_summary.png" # Use Pathlib
         plt.savefig(save_path, bbox_inches='tight'); plt.close()
         print(f"  Saved: {save_path}")
-        summary_plot_generated = True
     else:
         print(f"SHAP ({model_type_str}): shap_values_for_plotting not suitable for summary plot. Skipping.");
         if not (is_multi_class_for_loops and isinstance(shap_values_for_plotting, list)): return
 
-    if not summary_plot_generated:
-        print(f"SHAP ({model_type_str}): No summary plot generated. Skipping dependence plots.")
-        return []
+    # ... (rest of dependence plot logic, ensuring to use plot_dir_path) ...
+    # Example for dependence plot save path:
+    # save_path = plot_dir_path / f"{model_type_str.replace(' ', '_').lower()}_shap_dependence_{feature_name_safe_filename}_{class_label_safe}.png"
+
+    # (The rest of your dependence plot logic from the prompt should follow,
+    #  making sure to use plot_dir_path for saving figures.)
 
     mean_abs_shap_per_feature = None
     if is_multi_class_for_loops and isinstance(shap_values_for_plotting, list):
-        if all(s.shape == shap_values_for_plotting[0].shape for s in shap_values_for_plotting): 
-            abs_shap_mean_across_classes = np.mean([np.abs(s) for s in shap_values_for_plotting], axis=0)
-            if abs_shap_mean_across_classes.ndim == 2:
-                mean_abs_shap_per_feature = np.mean(abs_shap_mean_across_classes, axis=0)
+        abs_shap_mean_across_classes = np.mean([np.abs(s) for s in shap_values_for_plotting], axis=0)
+        if abs_shap_mean_across_classes.ndim == 2: mean_abs_shap_per_feature = np.mean(abs_shap_mean_across_classes, axis=0)
     elif shap_values_for_plotting is not None and hasattr(shap_values_for_plotting, 'ndim') and shap_values_for_plotting.ndim == 2:
         mean_abs_shap_per_feature = np.abs(shap_values_for_plotting).mean(0)
 
@@ -281,7 +304,6 @@ def generate_and_save_shap_plots(model, X_sample_df_orig, feature_names_list, mo
         top_feature_indices = np.argsort(mean_abs_shap_per_feature)[::-1][:min(3, len(feature_names_list_str))]
         for feature_idx_int in top_feature_indices:
             feature_name_as_string = feature_names_list_str[feature_idx_int]
-            top_shap_features_for_dependence.append(feature_name_as_string)
             feature_name_safe_filename = feature_name_as_string.replace('/', '_').replace(':', '_').lower()
 
             if is_multi_class_for_loops and isinstance(shap_values_for_plotting, list):
@@ -289,7 +311,24 @@ def generate_and_save_shap_plots(model, X_sample_df_orig, feature_names_list, mo
                     plt.figure()
                     class_label_safe = (class_names_list[i] if class_names_list and i < len(class_names_list) else f"Class_{i}").replace(' ', '_').lower()
                     try:
-                        shap.dependence_plot(feature_name_as_string, shap_values_for_plotting[i], X_sample_df_for_plot, show=False, interaction_index=None)
+                        shap.dependence_plot(
+                            feature_name_as_string, 
+                            shap_values_for_plotting[i], 
+                            X_sample_df_for_plot, 
+                            show=False, 
+                            interaction_index=None,
+                            # color="viridis"  # 使用viridis调色盘
+                            # interaction_index=feature_name_as_string,
+                            # color=explanation,
+                            cmap=plt.get_cmap("viridis")
+                        )
+
+                        ax = plt.gca()
+                        for coll in ax.collections:
+                            if hasattr(coll, 'set_edgecolor'):
+                                coll.set_edgecolor('white')
+                                coll.set_linewidth(0.5)
+
                         plt.title(f"SHAP Dependence: {feature_name_as_string} ({class_label_safe}) - {model_type_str}")
                         save_path = plot_dir_path / f"{model_type_str}_shap_dependence_{feature_name_safe_filename}_{class_label_safe}.png"
                         plt.savefig(save_path, bbox_inches='tight'); plt.close()
@@ -298,18 +337,32 @@ def generate_and_save_shap_plots(model, X_sample_df_orig, feature_names_list, mo
             elif shap_values_for_plotting is not None and hasattr(shap_values_for_plotting, 'ndim') and shap_values_for_plotting.ndim == 2:
                 plt.figure()
                 try:
-                    shap.dependence_plot(feature_name_as_string, shap_values_for_plotting, X_sample_df_for_plot, show=False, interaction_index=None)
+                    shap.dependence_plot(
+                        feature_name_as_string, 
+                        shap_values_for_plotting, 
+                        X_sample_df_for_plot, 
+                        show=False, 
+                        interaction_index=None,
+                        # color="viridis"  # 使用viridis调色盘
+                        # interaction_index=feature_name_as_string,
+                        # color=explanation,
+                        cmap=plt.get_cmap("viridis")
+                    )
+                    
+                    ax = plt.gca()
+                    for coll in ax.collections:
+                        if hasattr(coll, 'set_edgecolor'):
+                            coll.set_edgecolor('white')
+                            coll.set_linewidth(0.5)
+                    
                     plt.title(f"SHAP Dependence Plot: {feature_name_as_string} - {model_type_str}")
                     save_path = plot_dir_path / f"{model_type_str}_shap_dependence_{feature_name_safe_filename}.png"
                     plt.savefig(save_path, bbox_inches='tight'); plt.close()
                     print(f"  Saved: {save_path}")
                 except Exception as e_dep: print(f"  SHAP ({model_type_str}): Error in dependence plot for {feature_name_as_string}: {e_dep}"); plt.close()
         print(f"SHAP dependence plots generated for top features of {model_type_str}.")
-
-    return top_shap_features_for_dependence # Return the list of top features used for dependence plots
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-
 
 def plot_roc_curves(y_true, y_pred_probas_dict, class_names_list, num_classes):
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -348,6 +401,47 @@ def plot_roc_curves(y_true, y_pred_probas_dict, class_names_list, num_classes):
     plt.tight_layout()
     return fig
 
+'''
+def plot_roc_curves(y_true, y_pred_probas_dict, class_names_list, num_classes):
+    import seaborn as sns
+    viridis_colors = sns.color_palette("Spectral_r", n_colors=len(y_pred_probas_dict))
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    for idx, (model_name, y_pred_proba) in enumerate(y_pred_probas_dict.items()):
+        color = viridis_colors[idx % len(viridis_colors)]
+        if num_classes == 2:
+            if y_pred_proba.ndim == 2 and y_pred_proba.shape[1] == 2:
+                 y_scores = y_pred_proba[:, 1]
+            elif y_pred_proba.ndim == 1:
+                 y_scores = y_pred_proba
+            else:
+                print(f"Error: y_pred_proba for binary ROC for {model_name} has unexpected shape {y_pred_proba.shape}")
+                continue
+            fpr, tpr, _ = roc_curve(y_true, y_scores)
+            roc_auc = auc(fpr, tpr)
+            ax.plot(fpr, tpr, label=f'{model_name} (AUC = {roc_auc:.3f})', color=color)
+        else:
+            y_true_bin = label_binarize(y_true, classes=np.arange(num_classes))
+            if y_pred_proba.ndim != 2 or y_pred_proba.shape[1] != num_classes:
+                print(f"Error: y_pred_proba for multi-class ROC for {model_name} has unexpected shape {y_pred_proba.shape}")
+                continue
+            for i in range(num_classes):
+                fpr, tpr, _ = roc_curve(y_true_bin[:, i], y_pred_proba[:, i])
+                roc_auc = auc(fpr, tpr)
+                ax.plot(fpr, tpr, linestyle='--', label=f'{model_name} - Class {class_names_list[i]} (AUC = {roc_auc:.3f})', color=color)
+            fpr_micro, tpr_micro, _ = roc_curve(y_true_bin.ravel(), y_pred_proba.ravel())
+            roc_auc_micro = auc(fpr_micro, tpr_micro)
+            ax.plot(fpr_micro, tpr_micro, label=f'{model_name} - Micro Avg (AUC = {roc_auc_micro:.3f})', color='deeppink', linestyle=':', linewidth=3)
+
+    ax.plot([0, 1], [0, 1], 'k--', label='Chance Level (AUC = 0.5)') # T('Chance Level (AUC = 0.5)')
+    ax.set_xlabel('False Positive Rate') # T('False Positive Rate')
+    ax.set_ylabel('True Positive Rate') # T('True Positive Rate')
+    ax.set_title('Receiver Operating Characteristic (ROC) Curves') # T('Receiver Operating Characteristic (ROC) Curves')
+    ax.legend(loc="lower right")
+    ax.grid(True)
+    plt.tight_layout()
+    return fig
+'''
 def plot_precision_recall_curves(y_true, y_pred_probas_dict, class_names_list, num_classes):
     fig, ax = plt.subplots(figsize=(10, 8))
     
@@ -380,36 +474,5 @@ def plot_precision_recall_curves(y_true, y_pred_probas_dict, class_names_list, n
     ax.set_title('Precision-Recall Curves') # T('Precision-Recall Curves')
     ax.legend(loc="best") # Consider loc="lower left" or "center left" for PR curves
     ax.grid(True)
-    plt.tight_layout()
-    return fig
-
-
-def get_feature_importances_for_model(model, feature_names, model_type):
-    if hasattr(model, 'feature_importances_'): # Tree-based models (RF, XGBoost)
-        return pd.Series(model.feature_importances_, index=feature_names).sort_values(ascending=False)
-    elif hasattr(model, 'coef_') and model_type == "SVM" and model.kernel == 'linear': # Linear SVM
-        # For multi-class linear SVM, coef_ can be (n_classes, n_features)
-        # For binary, it's often (1, n_features). We'll take absolute mean across classes if multi-class for simplicity.
-        if model.coef_.ndim == 2 and model.coef_.shape[0] > 1:
-            importances = np.mean(np.abs(model.coef_), axis=0)
-        else:
-            importances = np.abs(model.coef_).flatten()
-        return pd.Series(importances, index=feature_names).sort_values(ascending=False)
-    # Add logic for permutation importance for non-linear SVM or other models if needed
-    # This is a simplified version. Production might need permutation importance for some models.
-    return None
-
-def plot_feature_importances_func(importances_series, model_name, top_n=20):
-    if importances_series is None or importances_series.empty:
-        return None
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-
-    top_n_importances = importances_series.head(top_n)
-    fig, ax = plt.subplots(figsize=(10, max(6, len(top_n_importances) / 2)))
-    sns.barplot(x=top_n_importances.values, y=top_n_importances.index, hue=top_n_importances.index, legend=False, ax=ax, palette="viridis")
-    ax.set_title(T("viz_fi_title", n_features=top_n, model_name=model_name))
-    ax.set_xlabel(T("viz_fi_xlabel"))
-    ax.set_ylabel(T("viz_fi_ylabel"))
     plt.tight_layout()
     return fig

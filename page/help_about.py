@@ -67,11 +67,11 @@ def show_page():
     st.subheader(T("help_about_project_ack_header", default="Project & Acknowledgements"))
     st.markdown(T("help_about_project_ack_content", default="""
     * This tool was developed as part of the COMMON TOOLS FOR DATA SCIENCE final project.
-    * **Team:** [Your Team Name or Group Number: e.g., 2025GXX-ProjectName]
-        * [Team Member 1]
-        * [Team Member 2]
-        * [Team Member 3]
-        * [Team Member 4 (and 5 if applicable)]
+    * **Team:** 2025G10-Geochemical Rock Classifier]
+        * [陆健成 22400]
+        * [彭柳铭 2240029653@student.must.edu.mo]
+        * [吴佳庚 2240001061@student.must.edu.mo]
+        * [谢家桉 2240025714@student.must.edu.mo]
     * **Dataset:** "2025-Project-Data.xlsx" (provided for the course).
     * **Inspiration for GUI Structure:** `rascore.streamlit.app` by Mitch Parker.
     """))

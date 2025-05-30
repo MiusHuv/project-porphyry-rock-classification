@@ -141,6 +141,24 @@ def show_page():
         if pr_fig: st.pyplot(pr_fig)
         st.caption(T("perf_viz_pr_caption"))
 
+    st.write("\n\n\n")
+    st.write("")
+    # st.write("")   
+    
+    col1, col2 = st.columns(2)
+
+    # Store page keys directly for navigation, display names are handled by app.py
+    # The button labels themselves should be translated.
+    with col1:
+        if st.button(T("home_button_run_prediction"), use_container_width=True, help=T("home_help_run_prediction")):
+            st.session_state.selected_page_key = "Run Prediction"
+            st.rerun()
+
+    with col2:
+        if st.button(T("home_button_model_insights"), use_container_width=True, help=T("home_help_model_insights")):
+            st.session_state.selected_page_key = "Model Insights"
+            st.rerun()
+
 if __name__ == "__main__":
     if 'lang' not in st.session_state: st.session_state.lang = "en"
     # Mock for testing

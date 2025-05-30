@@ -16,7 +16,7 @@ It is recommended to use a Conda virtual environment.
 
 1.  **Create Conda Environment (Recommended)**:
     ```bash
-    conda create -n porphyry_classifier python=3.11
+    conda create -n porphyry_classifier python=3.13.3
     conda activate porphyry_classifier
     ```
 
@@ -86,7 +86,7 @@ The application will open in your default web browser.
 
 1.  **创建Conda环境 (推荐)**:
     ```bash
-    conda create -n porphyry_classifier python=3.11
+    conda create -n porphyry_classifier python=3.13.3
     conda activate porphyry_classifier
     ```
 

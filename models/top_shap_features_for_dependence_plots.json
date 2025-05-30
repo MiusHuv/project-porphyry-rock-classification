@@ -1,0 +1,22 @@
+{
+    "Random Forest": [
+        "Nb_clr",
+        "TiO2_ppm_clr",
+        "Ta_clr"
+    ],
+    "SVM": [
+        "Nb_clr",
+        "TiO2_ppm_clr",
+        "TFe2O3_ppm_clr"
+    ],
+    "PyTorch DNN": [
+        "Nb_clr",
+        "TiO2_ppm_clr",
+        "Th_clr"
+    ],
+    "XGBoost": [
+        "Nb_clr",
+        "MgO_ppm_clr",
+        "TiO2_ppm_clr"
+    ]
+}

@@ -147,7 +147,7 @@ def show_page():
 
     if FINAL_FEATURE_NAMES_FROM_TRAINING and len(FINAL_FEATURE_NAMES_FROM_TRAINING) >= 1:
         features_for_dep_plots = top_shap_features_config.get(selected_model_name_insights, [])
-        st.info(f"Features for dependence plots: {features_for_dep_plots}")
+        # st.info(f"Features for dependence plots: {features_for_dep_plots}")
         
         if not features_for_dep_plots:
             st.info(T("model_insights_shap_dependence_config_missing", model_name=selected_model_name_insights))
